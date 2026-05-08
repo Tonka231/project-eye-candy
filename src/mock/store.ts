@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { datasets } from "./datasets";
-import type { Dataset, DemoMode } from "./types";
+import type { Agent, Dataset, DemoMode } from "./types";
 
 interface State {
   mode: DemoMode;
@@ -38,13 +38,13 @@ export const useStore = create<State>((set, get) => ({
             name,
             baseUrl,
             apiVersion: "v0.4.1",
-            status: "registered",
+            status: "registered" as const,
             retentionDays: 30,
             registeredAt: new Date().toISOString(),
             lastSeenSec: 0,
             heartbeatPct: 0,
-            sparkline: Array(24).fill(0),
-            agents: [],
+            sparkline: Array(24).fill(0) as number[],
+            agents: [] as Agent[],
           },
         ],
         events: [
