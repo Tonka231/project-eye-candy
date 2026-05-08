@@ -9,38 +9,154 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkloadsRouteImport } from './routes/workloads'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as InsightsRouteImport } from './routes/insights'
+import { Route as CommandsRouteImport } from './routes/commands'
+import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WorkloadsSlugRouteImport } from './routes/workloads.$slug'
 
+const WorkloadsRoute = WorkloadsRouteImport.update({
+  id: '/workloads',
+  path: '/workloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommandsRoute = CommandsRouteImport.update({
+  id: '/commands',
+  path: '/commands',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkloadsSlugRoute = WorkloadsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => WorkloadsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/commands': typeof CommandsRoute
+  '/insights': typeof InsightsRoute
+  '/settings': typeof SettingsRoute
+  '/workloads': typeof WorkloadsRouteWithChildren
+  '/workloads/$slug': typeof WorkloadsSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/commands': typeof CommandsRoute
+  '/insights': typeof InsightsRoute
+  '/settings': typeof SettingsRoute
+  '/workloads': typeof WorkloadsRouteWithChildren
+  '/workloads/$slug': typeof WorkloadsSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/alerts': typeof AlertsRoute
+  '/commands': typeof CommandsRoute
+  '/insights': typeof InsightsRoute
+  '/settings': typeof SettingsRoute
+  '/workloads': typeof WorkloadsRouteWithChildren
+  '/workloads/$slug': typeof WorkloadsSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/alerts'
+    | '/commands'
+    | '/insights'
+    | '/settings'
+    | '/workloads'
+    | '/workloads/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/alerts'
+    | '/commands'
+    | '/insights'
+    | '/settings'
+    | '/workloads'
+    | '/workloads/$slug'
+  id:
+    | '__root__'
+    | '/'
+    | '/alerts'
+    | '/commands'
+    | '/insights'
+    | '/settings'
+    | '/workloads'
+    | '/workloads/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AlertsRoute: typeof AlertsRoute
+  CommandsRoute: typeof CommandsRoute
+  InsightsRoute: typeof InsightsRoute
+  SettingsRoute: typeof SettingsRoute
+  WorkloadsRoute: typeof WorkloadsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workloads': {
+      id: '/workloads'
+      path: '/workloads'
+      fullPath: '/workloads'
+      preLoaderRoute: typeof WorkloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/commands': {
+      id: '/commands'
+      path: '/commands'
+      fullPath: '/commands'
+      preLoaderRoute: typeof CommandsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +164,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workloads/$slug': {
+      id: '/workloads/$slug'
+      path: '/$slug'
+      fullPath: '/workloads/$slug'
+      preLoaderRoute: typeof WorkloadsSlugRouteImport
+      parentRoute: typeof WorkloadsRoute
+    }
   }
 }
 
+interface WorkloadsRouteChildren {
+  WorkloadsSlugRoute: typeof WorkloadsSlugRoute
+}
+
+const WorkloadsRouteChildren: WorkloadsRouteChildren = {
+  WorkloadsSlugRoute: WorkloadsSlugRoute,
+}
+
+const WorkloadsRouteWithChildren = WorkloadsRoute._addFileChildren(
+  WorkloadsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AlertsRoute: AlertsRoute,
+  CommandsRoute: CommandsRoute,
+  InsightsRoute: InsightsRoute,
+  SettingsRoute: SettingsRoute,
+  WorkloadsRoute: WorkloadsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
