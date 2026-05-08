@@ -50,7 +50,7 @@ export const useStore = create<State>((set, get) => ({
         events: [
           {
             id: `er-${Date.now()}`,
-            kind: "workload_registered",
+            kind: "workload_registered" as const,
             message: `${slug} registered`,
             source: slug,
             agoSec: 0,
