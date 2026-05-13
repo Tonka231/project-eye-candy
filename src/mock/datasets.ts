@@ -169,13 +169,15 @@ export const normal: Dataset = {
 };
 
 export const full: Dataset = {
+  market: marketSnapshot,
   workloads: [
-    buildWorkload(0, 5, "running", 96),
-    buildWorkload(1, 4, "degraded", 72),
-    buildWorkload(2, 4, "running", 91),
-    buildWorkload(3, 4, "running", 88),
-    buildWorkload(4, 3, "paused", 60),
-    buildWorkload(5, 3, "running", 99),
+    buildWorkload(0, 6, "running", 97),    // market-analyst
+    buildWorkload(1, 5, "running", 96),    // claude-trader
+    buildWorkload(2, 4, "degraded", 72),   // ingest
+    buildWorkload(3, 4, "running", 91),    // scheduler
+    buildWorkload(4, 4, "running", 88),    // trend-spotter
+    buildWorkload(5, 3, "paused", 60),     // cert-watcher
+    buildWorkload(6, 3, "running", 99),    // cost-tracker
   ],
   alerts: [
     { id: "a1", severity: "critical", source: "claude-trader", message: "Order endpoint returning 5xx", occurrences: 12, lastSeenSec: 60, acked: false },
