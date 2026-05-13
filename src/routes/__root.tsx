@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -121,11 +122,28 @@ function Shell() {
   );
 }
 
+function useClientClock() {
+  const [s, setS] = useState<{ date: string; time: string }>({ date: "", time: "" });
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setS({
+        date: d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase(),
+        time: d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return s;
+}
+
 function Masthead() {
   const data = useStore((s) => s.data);
   const apiDown = useStore((s) => s.apiDown);
   const live = !apiDown;
-  const date = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+  const { date, time } = useClientClock();
 
   return (
     <header className="border-b hairline">
@@ -142,7 +160,7 @@ function Masthead() {
           <span>Edition</span>
           <span className="text-text-secondary">M0 · Telemetry</span>
           <span className="text-border-emphasis">·</span>
-          <span>{date}</span>
+          <span suppressHydrationWarning>{date || "—"}</span>
         </div>
         <NavBar />
       </div>
@@ -167,8 +185,8 @@ function Masthead() {
           <span>Backend <span className="text-text-secondary">{live ? "ok" : "down"}</span></span>
           <Sep />
           <span>Build <span className="text-text-secondary">m0/a</span></span>
-          <span className="ml-auto text-text-muted">
-            {data.stats.heartbeats1h} ev/h · {data.alerts.filter((a) => !a.acked).length} open · {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} UTC
+          <span className="ml-auto text-text-muted" suppressHydrationWarning>
+            {data.stats.heartbeats1h} ev/h · {data.alerts.filter((a) => !a.acked).length} open{time ? ` · ${time} local` : ""}
           </span>
         </div>
       </div>
@@ -205,12 +223,13 @@ function NavBar() {
 }
 
 function Colophon() {
+  const { time } = useClientClock();
   return (
     <footer className="mt-12 border-t hairline">
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-3 px-6 py-6 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
         <span>Dev · Dash — set in Newsreader & JetBrains Mono</span>
         <span>v0.0.1 · milestone <span className="text-accent">m0</span> · groundwork</span>
-        <span>printed to your browser at {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span suppressHydrationWarning>{time ? `printed at ${time} local` : "—"}</span>
       </div>
     </footer>
   );

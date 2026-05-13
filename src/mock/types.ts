@@ -85,6 +85,45 @@ export interface Stats {
   latencySpark: number[];
 }
 
+export interface MarketPosition {
+  symbol: string;
+  name: string;
+  kind: "etf" | "stock" | "crypto";
+  shares: number;
+  avgPrice: number;
+  price: number;
+  dayChangePct: number; // today
+  totalChangePct: number; // since entry
+}
+
+export interface MarketTip {
+  id: string;
+  symbol: string;
+  action: "buy" | "hold" | "sell" | "watch";
+  confidence: number; // 0..1
+  rationale: string;
+  horizon: "intraday" | "swing" | "long";
+}
+
+export interface MarketNews {
+  id: string;
+  source: string;
+  headline: string;
+  symbols: string[];
+  sentiment: "bullish" | "bearish" | "neutral";
+  agoMin: number;
+}
+
+export interface MarketSnapshot {
+  asOf: string; // human label like "EU close · synthetic"
+  indices: { name: string; value: number; changePct: number }[];
+  positions: MarketPosition[];
+  tips: MarketTip[];
+  news: MarketNews[];
+  portfolioValue: number;
+  portfolioDayChangePct: number;
+}
+
 export interface Dataset {
   workloads: Workload[];
   alerts: Alert[];
@@ -92,6 +131,7 @@ export interface Dataset {
   events: ActivityEvent[];
   trends: TrendSet;
   stats: Stats;
+  market?: MarketSnapshot;
 }
 
 export type DemoMode = "empty" | "normal" | "full";
