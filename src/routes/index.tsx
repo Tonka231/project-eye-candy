@@ -115,7 +115,7 @@ function Front() {
                     fontSize: 11,
                   }}
                   labelFormatter={(v) => (v === 0 ? "now" : `${v}m ago`)}
-                  formatter={(v: number) => [`${v} ev/s`, "throughput"]}
+                  formatter={(v) => [`${v} ev/s`, "throughput"]}
                 />
                 <ReferenceLine y={avg} stroke="var(--border-emphasis)" strokeDasharray="2 4" label={{ value: `avg ${avg}`, position: "right", fill: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 10 }} />
                 <ReferenceDot x={dipPoint.m} y={dipPoint.v} r={3} fill="var(--status-danger)" stroke="none" />
