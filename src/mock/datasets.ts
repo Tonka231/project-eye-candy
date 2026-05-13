@@ -123,10 +123,12 @@ export const empty: Dataset = {
 };
 
 export const normal: Dataset = {
+  market: marketSnapshot,
   workloads: [
-    buildWorkload(0, 5, "running", 98),
-    buildWorkload(1, 4, "running", 94),
-    buildWorkload(2, 4, "paused", 71),
+    buildWorkload(0, 5, "running", 96),  // market-analyst
+    buildWorkload(1, 5, "running", 98),  // claude-trader
+    buildWorkload(2, 4, "running", 94),  // ingest
+    buildWorkload(3, 4, "paused", 71),   // scheduler
   ],
   alerts: [
     { id: "a1", severity: "warning", source: "claude-trader", message: "Latency spike on order endpoint", occurrences: 4, lastSeenSec: 320, acked: false },
