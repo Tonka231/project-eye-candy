@@ -40,6 +40,7 @@ function agents(slug: string, count: number, includeOrganizer = true): Agent[] {
 }
 
 const workloadDefs: Array<Partial<Workload> & { slug: string; name: string }> = [
+  { slug: "market-analyst", name: "Market Analyst & Portfolio Watch", baseUrl: "https://market.internal" },
   { slug: "claude-trader", name: "Claude Trader Bot", baseUrl: "https://trader.internal" },
   { slug: "ingest", name: "Ingest Pipeline", baseUrl: "https://ingest.internal" },
   { slug: "scheduler", name: "Cron Scheduler", baseUrl: "https://sched.internal" },
@@ -47,6 +48,39 @@ const workloadDefs: Array<Partial<Workload> & { slug: string; name: string }> = 
   { slug: "cert-watcher", name: "SSL Cert Watcher", baseUrl: "https://certs.internal" },
   { slug: "cost-tracker", name: "Anthropic Cost Tracker", baseUrl: "https://cost.internal" },
 ];
+
+const marketSnapshot = {
+  asOf: "EU session · synthetic feed",
+  indices: [
+    { name: "S&P 500", value: 5_842.4, changePct: 0.42 },
+    { name: "DAX",     value: 19_310.7, changePct: -0.18 },
+    { name: "NASDAQ",  value: 18_624.1, changePct: 0.71 },
+    { name: "BTC/USD", value: 71_240,   changePct: 1.84 },
+  ],
+  positions: [
+    { symbol: "VWCE.DE", name: "FTSE All-World UCITS ETF", kind: "etf" as const,   shares: 38, avgPrice: 108.4, price: 124.62, dayChangePct: 0.36,  totalChangePct: 14.96 },
+    { symbol: "EUNL.DE", name: "iShares Core MSCI World",  kind: "etf" as const,   shares: 22, avgPrice: 82.1,  price: 96.18,  dayChangePct: 0.41,  totalChangePct: 17.15 },
+    { symbol: "IUIT.DE", name: "iShares S&P 500 IT Sector",kind: "etf" as const,   shares: 14, avgPrice: 18.6,  price: 24.40,  dayChangePct: 0.92,  totalChangePct: 31.18 },
+    { symbol: "NVDA",    name: "NVIDIA Corp",              kind: "stock" as const, shares: 6,  avgPrice: 412.0, price: 487.3,  dayChangePct: 1.21,  totalChangePct: 18.28 },
+    { symbol: "ASML.AS", name: "ASML Holding",             kind: "stock" as const, shares: 3,  avgPrice: 740.0, price: 682.5,  dayChangePct: -0.84, totalChangePct: -7.77 },
+    { symbol: "BTC",     name: "Bitcoin",                  kind: "crypto" as const,shares: 0.12, avgPrice: 52_300, price: 71_240, dayChangePct: 1.84, totalChangePct: 36.21 },
+  ],
+  tips: [
+    { id: "t1", symbol: "VWCE.DE", action: "hold" as const,  confidence: 0.82, horizon: "long" as const,    rationale: "Breite Diversifikation, niedrige TER. Keine Aktion nötig — Sparplan weiterlaufen lassen." },
+    { id: "t2", symbol: "NVDA",    action: "watch" as const, confidence: 0.64, horizon: "swing" as const,   rationale: "Earnings in 9 Tagen. Implied Move ~7%. Vor Earnings keine Vergrößerung der Position." },
+    { id: "t3", symbol: "ASML.AS", action: "buy" as const,   confidence: 0.71, horizon: "long" as const,    rationale: "−7.8% seit Einstieg, aber Auftragsbuch +12% YoY. Bei <€670 nachkaufen sinnvoll." },
+    { id: "t4", symbol: "BTC",     action: "sell" as const,  confidence: 0.58, horizon: "intraday" as const,rationale: "RSI(14) = 78, überkauft. Teilgewinn (25%) sichern, Stopp auf €68k nachziehen." },
+  ],
+  news: [
+    { id: "n1", source: "Reuters",   headline: "Fed signals possible rate hold through Q1 — Tech rallies",                        symbols: ["NVDA", "IUIT.DE"], sentiment: "bullish" as const,  agoMin: 18  },
+    { id: "n2", source: "Bloomberg", headline: "ASML cuts 2026 guidance citing slower China demand",                              symbols: ["ASML.AS"],         sentiment: "bearish" as const,  agoMin: 42  },
+    { id: "n3", source: "FT",        headline: "BlackRock files for spot Solana ETF — broader inflows expected",                  symbols: ["BTC"],             sentiment: "bullish" as const,  agoMin: 95  },
+    { id: "n4", source: "Handelsblatt", headline: "DAX schließt leicht im Minus — Autobauer belasten den Index",                 symbols: ["EUNL.DE"],         sentiment: "neutral" as const,  agoMin: 130 },
+    { id: "n5", source: "CoinDesk",  headline: "BTC dominance climbs to 58% as alt-season indicators cool",                       symbols: ["BTC"],             sentiment: "neutral" as const,  agoMin: 220 },
+  ],
+  portfolioValue: 18_472.30,
+  portfolioDayChangePct: 0.62,
+};
 
 function buildWorkload(i: number, agentCount: number, status: Workload["status"], heartbeat: number): Workload {
   const def = workloadDefs[i];
