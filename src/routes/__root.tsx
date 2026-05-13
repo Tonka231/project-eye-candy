@@ -223,12 +223,13 @@ function NavBar() {
 }
 
 function Colophon() {
+  const { time } = useClientClock();
   return (
     <footer className="mt-12 border-t hairline">
       <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-3 px-6 py-6 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
         <span>Dev · Dash — set in Newsreader & JetBrains Mono</span>
         <span>v0.0.1 · milestone <span className="text-accent">m0</span> · groundwork</span>
-        <span>printed to your browser at {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span suppressHydrationWarning>{time ? `printed at ${time} local` : "—"}</span>
       </div>
     </footer>
   );
