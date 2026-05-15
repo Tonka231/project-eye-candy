@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkloadsRouteImport } from './routes/workloads'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as MarketRouteImport } from './routes/market'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as CommandsRouteImport } from './routes/commands'
 import { Route as AlertsRouteImport } from './routes/alerts'
@@ -25,6 +26,11 @@ const WorkloadsRoute = WorkloadsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketRoute = MarketRouteImport.update({
+  id: '/market',
+  path: '/market',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InsightsRoute = InsightsRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AlertsRoute
   '/commands': typeof CommandsRoute
   '/insights': typeof InsightsRoute
+  '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AlertsRoute
   '/commands': typeof CommandsRoute
   '/insights': typeof InsightsRoute
+  '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/alerts': typeof AlertsRoute
   '/commands': typeof CommandsRoute
   '/insights': typeof InsightsRoute
+  '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/commands'
     | '/insights'
+    | '/market'
     | '/settings'
     | '/workloads'
     | '/workloads/$slug'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/commands'
     | '/insights'
+    | '/market'
     | '/settings'
     | '/workloads'
     | '/workloads/$slug'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/commands'
     | '/insights'
+    | '/market'
     | '/settings'
     | '/workloads'
     | '/workloads/$slug'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   AlertsRoute: typeof AlertsRoute
   CommandsRoute: typeof CommandsRoute
   InsightsRoute: typeof InsightsRoute
+  MarketRoute: typeof MarketRoute
   SettingsRoute: typeof SettingsRoute
   WorkloadsRoute: typeof WorkloadsRouteWithChildren
 }
@@ -134,6 +147,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/market': {
+      id: '/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof MarketRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/insights': {
@@ -191,19 +211,10 @@ const rootRouteChildren: RootRouteChildren = {
   AlertsRoute: AlertsRoute,
   CommandsRoute: CommandsRoute,
   InsightsRoute: InsightsRoute,
+  MarketRoute: MarketRoute,
   SettingsRoute: SettingsRoute,
   WorkloadsRoute: WorkloadsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
