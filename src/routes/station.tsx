@@ -30,8 +30,8 @@ const C = {
 } as const;
 
 /* ───────────────────────────── logical canvas ──────────────────────────── */
-const W = 512;
-const H = 320;
+const W = 640;
+const H = 400;
 
 type Theme = keyof typeof ROOM_THEME;
 const ROOM_THEME = {
@@ -60,23 +60,23 @@ const ROOMS: Room[] = [
   {
     id: "cmd",
     label: "COMMANDER",
-    x: 206,
-    y: 122,
-    w: 100,
-    h: 82,
+    x: 248,
+    y: 150,
+    w: 150,
+    h: 112,
     theme: "sith",
     boss: true,
-    crew: 1,
+    crew: 2,
   },
-  { id: "resA", label: "RECHERCHE α", x: 26, y: 26, w: 92, h: 62, theme: "steel", crew: 2 },
-  { id: "resB", label: "RECHERCHE β", x: 26, y: 130, w: 92, h: 62, theme: "steel", crew: 2 },
-  { id: "resG", label: "RECHERCHE γ", x: 26, y: 232, w: 92, h: 62, theme: "steel", crew: 2 },
-  { id: "fact", label: "FAKTENCHECK", x: 148, y: 20, w: 88, h: 58, theme: "amber", crew: 1 },
-  { id: "confl", label: "WIDERSPRUCH", x: 288, y: 20, w: 88, h: 58, theme: "deep", crew: 1 },
-  { id: "synth", label: "SYNTHESE", x: 394, y: 60, w: 92, h: 62, theme: "sith", crew: 1 },
-  { id: "crit", label: "KRITIKER", x: 394, y: 160, w: 92, h: 62, theme: "toxic", crew: 1 },
-  { id: "cite", label: "ZITATION", x: 300, y: 236, w: 88, h: 58, theme: "amber", crew: 1 },
-  { id: "rep", label: "REPORT", x: 178, y: 240, w: 96, h: 58, theme: "ember", crew: 2 },
+  { id: "resA", label: "RECHERCHE α", x: 22, y: 26, w: 122, h: 94, theme: "steel", crew: 3 },
+  { id: "resB", label: "RECHERCHE β", x: 22, y: 154, w: 122, h: 94, theme: "steel", crew: 3 },
+  { id: "resG", label: "RECHERCHE γ", x: 22, y: 282, w: 122, h: 94, theme: "steel", crew: 3 },
+  { id: "fact", label: "FAKTENCHECK", x: 176, y: 24, w: 120, h: 86, theme: "amber", crew: 2 },
+  { id: "confl", label: "WIDERSPRUCH", x: 364, y: 24, w: 120, h: 86, theme: "deep", crew: 2 },
+  { id: "synth", label: "SYNTHESE", x: 502, y: 96, w: 116, h: 92, theme: "sith", crew: 2 },
+  { id: "crit", label: "KRITIKER", x: 502, y: 224, w: 116, h: 92, theme: "toxic", crew: 2 },
+  { id: "cite", label: "ZITATION", x: 364, y: 302, w: 120, h: 74, theme: "amber", crew: 2 },
+  { id: "rep", label: "REPORT", x: 182, y: 302, w: 120, h: 74, theme: "ember", crew: 3 },
 ];
 const ROOM = Object.fromEntries(ROOMS.map((r) => [r.id, r])) as Record<string, Room>;
 const cx = (r: Room) => r.x + r.w / 2;
@@ -258,13 +258,103 @@ interface Bead {
   to: string;
 }
 
+/* ── crew characters that actually walk around inside their room ── */
+interface Character {
+  room: string;
+  x: number;
+  y: number; // feet position, absolute logical coords
+  tx: number;
+  ty: number; // current walk target
+  spd: number; // px per ms
+  face: number; // -1 left, 1 right
+  step: number; // walk-cycle accumulator
+  idle: number; // ms left standing still
+  color: string;
+  boss: boolean;
+  wob: number; // per-character phase offset
+}
+
+// The open floor a character may wander — lower/central part of the room,
+// clear of the machinery lined up along the top wall.
+function roomWalk(r: Room) {
+  return {
+    x0: r.x + 16,
+    y0: r.y + Math.round(r.h * 0.48),
+    x1: r.x + r.w - 16,
+    y1: r.y + r.h - 12,
+  };
+}
+function rand(a: number, b: number) {
+  return a + Math.random() * (b - a);
+}
+
+function initCharacters(): Character[] {
+  const chars: Character[] = [];
+  for (const r of ROOMS) {
+    const wk = roomWalk(r);
+    const th = ROOM_THEME[r.theme];
+    for (let i = 0; i < r.crew; i++) {
+      const boss = !!r.boss && i === 0;
+      chars.push({
+        room: r.id,
+        x: rand(wk.x0, wk.x1),
+        y: rand(wk.y0, wk.y1),
+        tx: rand(wk.x0, wk.x1),
+        ty: rand(wk.y0, wk.y1),
+        spd: boss ? 0.014 : rand(0.018, 0.03),
+        face: Math.random() < 0.5 ? -1 : 1,
+        step: Math.random() * 6,
+        idle: rand(0, 1200),
+        color: boss ? C.sith : th.edge,
+        boss,
+        wob: Math.random() * 6.28,
+      });
+    }
+  }
+  return chars;
+}
+
+function updateCharacters(chars: Character[], dt: number, active: Record<string, number>) {
+  for (const ch of chars) {
+    const r = ROOM[ch.room];
+    const wk = roomWalk(r);
+    const heat = active[ch.room] ?? 0;
+    if (ch.idle > 0) {
+      ch.idle -= dt;
+      continue;
+    }
+    const dx = ch.tx - ch.x;
+    const dy = ch.ty - ch.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1.3) {
+      // arrived — sometimes pause, then pick a fresh target
+      ch.idle = Math.random() < 0.6 ? rand(250, 1600) : 0;
+      ch.tx = rand(wk.x0, wk.x1);
+      ch.ty = rand(wk.y0, wk.y1);
+      continue;
+    }
+    const spd = ch.spd * (1 + heat * 0.9);
+    const mv = Math.min(d, spd * dt);
+    ch.x += (dx / d) * mv;
+    ch.y += (dy / d) * mv;
+    ch.face = dx < 0 ? -1 : 1;
+    ch.step += mv * 0.55;
+  }
+}
+
+function polyline(ctx: CanvasRenderingContext2D, pts: [number, number][]) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]);
+}
+
 function drawStatic(ctx: CanvasRenderingContext2D, stars: { x: number; y: number; b: number }[]) {
   // deep space
   ctx.fillStyle = C.void;
   ctx.fillRect(0, 0, W, H);
   // faint nebula wash
-  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 260);
-  g.addColorStop(0, "rgba(255,31,61,0.05)");
+  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 320);
+  g.addColorStop(0, "rgba(255,31,61,0.06)");
   g.addColorStop(1, "rgba(4,5,10,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
@@ -273,72 +363,192 @@ function drawStatic(ctx: CanvasRenderingContext2D, stars: { x: number; y: number
     ctx.fillStyle = `rgba(198,202,216,${s.b})`;
     ctx.fillRect(s.x, s.y, 1, 1);
   }
-  // corridors (drawn once, under everything)
+  // corridors as lit tubes with side rails
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   for (const [a, b] of EDGES) {
     const pts = edgePath(a, b);
-    ctx.strokeStyle = "rgba(86,92,112,0.35)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]);
+    polyline(ctx, pts);
+    ctx.strokeStyle = hexA(C.ash, 0.28);
+    ctx.lineWidth = 14;
     ctx.stroke();
-    ctx.strokeStyle = "rgba(11,13,21,0.9)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#080a12";
+    ctx.lineWidth = 11;
     ctx.stroke();
+    ctx.strokeStyle = hexA(C.ash, 0.16);
+    ctx.setLineDash([2, 4]);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   // rooms
   for (const r of ROOMS) drawRoom(ctx, r);
 }
 
+// Which furniture stands along the top wall of each room (left → right).
+const FURN: Record<string, Prop[]> = {
+  cmd: ["console", "reactor", "console", "screen"],
+  resA: ["rack", "rack", "console", "rack"],
+  resB: ["rack", "console", "rack", "rack"],
+  resG: ["console", "rack", "rack", "rack"],
+  fact: ["screen", "console", "screen"],
+  confl: ["screen", "crate", "screen", "crate"],
+  synth: ["reactor", "console", "screen"],
+  crit: ["plant", "console", "crate", "plant"],
+  cite: ["console", "screen", "console"],
+  rep: ["console", "pod", "crate"],
+};
+type Prop = "rack" | "console" | "reactor" | "crate" | "pod" | "screen" | "plant";
+
 function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   const th = ROOM_THEME[r.theme];
-  // floor
+  // floor base
   ctx.fillStyle = th.floor;
   ctx.fillRect(r.x, r.y, r.w, r.h);
-  // floor grid
-  ctx.strokeStyle = "rgba(255,255,255,0.04)";
+  // checker floor tiles (two shades) + panel seams
+  for (let ty = 0, gy = r.y; gy < r.y + r.h; gy += 8, ty++) {
+    for (let tx = 0, gx = r.x; gx < r.x + r.w; gx += 8, tx++) {
+      if ((tx + ty) & 1) {
+        ctx.fillStyle = "rgba(255,255,255,0.025)";
+        ctx.fillRect(gx, gy, 8, 8);
+      }
+    }
+  }
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
   ctx.lineWidth = 1;
-  for (let gx = r.x + 8; gx < r.x + r.w; gx += 8) {
+  for (let gx = r.x + 16; gx < r.x + r.w; gx += 16) {
     ctx.beginPath();
-    ctx.moveTo(gx + 0.5, r.y + 1);
-    ctx.lineTo(gx + 0.5, r.y + r.h - 1);
+    ctx.moveTo(gx + 0.5, r.y + 3);
+    ctx.lineTo(gx + 0.5, r.y + r.h - 3);
     ctx.stroke();
   }
-  for (let gy = r.y + 8; gy < r.y + r.h; gy += 8) {
-    ctx.beginPath();
-    ctx.moveTo(r.x + 1, gy + 0.5);
-    ctx.lineTo(r.x + r.w - 1, gy + 0.5);
-    ctx.stroke();
-  }
-  // machines / consoles along the top wall
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  for (let mx = r.x + 6; mx < r.x + r.w - 10; mx += 14) {
-    ctx.fillRect(mx, r.y + 4, 9, 6);
-  }
-  // wall / neon border
+  // inner wall band with door gaps top & bottom
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, 4); // top wall
+  ctx.fillRect(r.x + 3, r.y + r.h - 7, r.w - 6, 4); // bottom wall
+  ctx.fillStyle = th.floor; // carve doors
+  ctx.fillRect(cx(r) - 6, r.y + 3, 12, 4);
+  ctx.fillRect(cx(r) - 6, r.y + r.h - 7, 12, 4);
+
+  // furniture along the top wall
+  const props = FURN[r.id] ?? ["console"];
+  const span = r.w - 20;
+  const step = span / props.length;
+  props.forEach((p, i) => {
+    const px = Math.round(r.x + 12 + step * i + (step - 12) / 2);
+    drawProp(ctx, p, px, r.y + 9, th.edge);
+  });
+
+  // neon wall border + corner posts
   ctx.strokeStyle = th.edge;
   ctx.lineWidth = 1;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-  // corner nubs
   ctx.fillStyle = th.edge;
-  ctx.fillRect(r.x, r.y, 3, 3);
-  ctx.fillRect(r.x + r.w - 3, r.y, 3, 3);
-  ctx.fillRect(r.x, r.y + r.h - 3, 3, 3);
-  ctx.fillRect(r.x + r.w - 3, r.y + r.h - 3, 3, 3);
+  for (const [ox, oy] of [
+    [r.x, r.y],
+    [r.x + r.w - 3, r.y],
+    [r.x, r.y + r.h - 3],
+    [r.x + r.w - 3, r.y + r.h - 3],
+  ])
+    ctx.fillRect(ox, oy, 3, 3);
+}
+
+// ── procedural pixel furniture (copyright-clean, drawn by hand) ──
+function drawProp(ctx: CanvasRenderingContext2D, kind: Prop, x: number, y: number, color: string) {
+  switch (kind) {
+    case "rack": {
+      ctx.fillStyle = "#0d1018";
+      ctx.fillRect(x, y, 10, 16);
+      ctx.fillStyle = "#05070c";
+      ctx.fillRect(x + 1, y + 1, 8, 14);
+      for (let ry = y + 2; ry < y + 15; ry += 3) {
+        ctx.fillStyle = shade(color, 0.7);
+        ctx.fillRect(x + 2, ry, 6, 1);
+        ctx.fillStyle = hexA(color, 0.9);
+        ctx.fillRect(x + 2, ry, 1, 1);
+      }
+      break;
+    }
+    case "console": {
+      ctx.fillStyle = "#0d1018";
+      ctx.fillRect(x, y + 6, 14, 6);
+      ctx.fillStyle = "#0a0d14";
+      ctx.fillRect(x + 1, y, 12, 6); // screen back
+      ctx.fillStyle = hexA(color, 0.55);
+      ctx.fillRect(x + 2, y + 1, 10, 4); // glowing screen
+      ctx.fillStyle = hexA(color, 0.95);
+      ctx.fillRect(x + 3, y + 2, 3, 1);
+      break;
+    }
+    case "reactor": {
+      ctx.fillStyle = "#0b0e16";
+      ctx.fillRect(x - 1, y, 14, 14);
+      ctx.fillStyle = shade(color, 0.5);
+      ctx.fillRect(x + 1, y + 2, 10, 10);
+      ctx.fillStyle = hexA(color, 0.9);
+      ctx.fillRect(x + 4, y + 1, 4, 12);
+      ctx.fillRect(x + 1, y + 4, 10, 4);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x + 5, y + 5, 2, 2);
+      break;
+    }
+    case "crate": {
+      ctx.fillStyle = "#2a2016";
+      ctx.fillRect(x, y + 4, 10, 10);
+      ctx.fillStyle = "#3a2c1c";
+      ctx.fillRect(x + 1, y + 5, 8, 8);
+      ctx.strokeStyle = "#1a140c";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 1, y + 5);
+      ctx.lineTo(x + 9, y + 13);
+      ctx.moveTo(x + 9, y + 5);
+      ctx.lineTo(x + 1, y + 13);
+      ctx.stroke();
+      break;
+    }
+    case "pod": {
+      ctx.fillStyle = "#0d1018";
+      ctx.fillRect(x - 1, y + 3, 16, 9);
+      ctx.fillStyle = hexA(color, 0.35);
+      ctx.fillRect(x + 1, y + 4, 12, 7); // glass
+      ctx.fillStyle = hexA(color, 0.7);
+      ctx.fillRect(x + 2, y + 5, 10, 1);
+      break;
+    }
+    case "screen": {
+      ctx.fillStyle = "#0d1018";
+      ctx.fillRect(x, y, 12, 8);
+      ctx.fillStyle = hexA(color, 0.45);
+      ctx.fillRect(x + 1, y + 1, 10, 6);
+      ctx.fillStyle = hexA(color, 0.85);
+      for (let ly = y + 2; ly < y + 7; ly += 2) ctx.fillRect(x + 2, ly, 8, 1);
+      break;
+    }
+    case "plant": {
+      ctx.fillStyle = "#241a10";
+      ctx.fillRect(x + 2, y + 8, 6, 5);
+      ctx.fillStyle = shade(C.toxic, 0.8);
+      ctx.fillRect(x + 1, y + 2, 8, 7);
+      ctx.fillStyle = hexA(C.toxic, 0.9);
+      ctx.fillRect(x + 3, y + 1, 4, 4);
+      break;
+    }
+  }
 }
 
 function drawDynamic(
   ctx: CanvasRenderingContext2D,
   beads: Bead[],
+  chars: Character[],
   active: Record<string, number>,
   now: number,
 ) {
+  // ── glow pass (additive) ──
   ctx.globalCompositeOperation = "lighter";
-
-  // active-room border pulse + machine LEDs
   for (const r of ROOMS) {
     const th = ROOM_THEME[r.theme];
-    const heat = active[r.id] ?? 0; // 0..1 recent activity
+    const heat = active[r.id] ?? 0;
     const pulse = 0.35 + 0.25 * Math.sin(now / 320 + r.x);
     const glow = Math.min(1, pulse + heat);
     ctx.strokeStyle = hexA(th.glow, 0.16 + 0.5 * glow);
@@ -348,31 +558,25 @@ function drawDynamic(
       ctx.strokeStyle = hexA(th.glow, 0.25 * heat);
       ctx.strokeRect(r.x - 2.5, r.y - 2.5, r.w + 5, r.h + 5);
     }
-    // blinking machine LEDs
-    for (let i = 0, mx = r.x + 9; mx < r.x + r.w - 10; mx += 14, i++) {
+    // blinking machine LEDs along the top wall
+    const props = FURN[r.id] ?? [];
+    const step = (r.w - 20) / Math.max(1, props.length);
+    for (let i = 0; i < props.length; i++) {
       const on = (now / 240 + i * 1.7 + r.y) % 3 < 1.4;
       if (on) {
-        ctx.fillStyle = hexA(C.amber, 0.9);
-        ctx.fillRect(mx, r.y + 5, 2, 2);
+        ctx.fillStyle = hexA(C.amber, 0.85);
+        ctx.fillRect(Math.round(r.x + 12 + step * i), r.y + 8, 2, 2);
       }
     }
-    // crew figures
-    for (let i = 0; i < r.crew; i++) {
-      const bob = Math.sin(now / 500 + i * 2 + r.x) > 0 ? 1 : 0;
-      const px = r.x + 12 + i * 12;
-      const py = r.y + r.h - 16 + bob;
-      drawFigure(ctx, px, py, th.glow, false);
-    }
-    // boss figure
-    if (r.boss) {
-      const aura = 0.4 + 0.3 * Math.sin(now / 260);
-      ctx.fillStyle = hexA(C.sith, 0.1 + 0.14 * aura);
-      ctx.fillRect(cx(r) - 14, cy(r) - 16, 28, 30);
-      drawFigure(ctx, cx(r) - 4, cy(r) - 10, C.sith, true);
-    }
   }
+  for (const ch of chars) drawCharGlow(ctx, ch, now);
 
-  // travelling beads (message hand-offs)
+  // ── solid sprites (normal blend) ──
+  ctx.globalCompositeOperation = "source-over";
+  for (const ch of [...chars].sort((a, b) => a.y - b.y)) drawCharBody(ctx, ch, now);
+
+  // ── travelling beads (additive) ──
+  ctx.globalCompositeOperation = "lighter";
   for (const b of beads) {
     const [x, y] = walk(b.pts, Math.min(1, b.t));
     ctx.fillStyle = hexA(b.color, 0.18);
@@ -381,7 +585,6 @@ function drawDynamic(
     ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
     ctx.fillStyle = "#fff";
     ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
-    // fading trail
     for (let k = 1; k <= 3; k++) {
       const [tx, ty] = walk(b.pts, Math.max(0, b.t - k * 0.02));
       ctx.fillStyle = hexA(b.color, 0.18 / k);
@@ -393,22 +596,76 @@ function drawDynamic(
   drawMinimap(ctx, active, now);
 }
 
-function drawFigure(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  color: string,
-  boss: boolean,
-) {
-  const s = boss ? 2 : 1;
-  // body
-  ctx.fillStyle = hexA(color, boss ? 0.95 : 0.75);
-  ctx.fillRect(x, y, 3 * s, 5 * s);
-  // head
-  ctx.fillRect(x + (boss ? 0 : 0.5) * s, y - 3 * s, 3 * s, 3 * s);
-  // eye
+function drawCharGlow(ctx: CanvasRenderingContext2D, ch: Character, now: number) {
+  const b = ch.boss;
+  const pulse = 0.55 + 0.45 * Math.sin(now / (b ? 300 : 520) + ch.wob);
+  const rx = b ? 11 : 6;
+  const cy0 = ch.y - (b ? 8 : 5);
+  ctx.fillStyle = hexA(ch.color, (b ? 0.15 : 0.08) * (0.6 + 0.4 * pulse));
+  ctx.fillRect(ch.x - rx, cy0 - rx, rx * 2, rx * 2);
+  ctx.fillStyle = hexA(ch.color, (b ? 0.1 : 0.05) * (0.6 + 0.4 * pulse));
+  ctx.fillRect(ch.x - rx * 1.6, cy0 - rx * 1.4, rx * 3.2, rx * 2.8);
+}
+
+// A chunky humanoid with a 2-frame walk cycle. ch.(x,y) is the feet centre.
+function drawCharBody(ctx: CanvasRenderingContext2D, ch: Character, now: number) {
+  const b = ch.boss;
+  const moving = ch.idle <= 0;
+  const phase = Math.floor(ch.step) % 2;
+  const breathe = !moving && Math.sin(now / 600 + ch.wob) > 0 ? -1 : 0;
+  const x = Math.round(ch.x);
+  const y = Math.round(ch.y);
+
+  const headW = b ? 6 : 4;
+  const headH = b ? 5 : 4;
+  const torW = b ? 8 : 6;
+  const torH = b ? 8 : 6;
+  const legH = b ? 4 : 3;
+  const lw = b ? 3 : 2;
+
+  const dark = shade(ch.color, 0.42);
+  const mid = shade(ch.color, 0.72);
+  const legTop = y - legH;
+  const torTop = legTop - torH + breathe;
+  const headTop = torTop - headH;
+
+  // ground shadow
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(x - torW / 2 - 1, y, torW + 2, 2);
+
+  // legs (alternating step)
+  ctx.fillStyle = dark;
+  const liftL = moving ? (phase ? -1 : 0) : 0;
+  const liftR = moving ? (phase ? 0 : -1) : 0;
+  ctx.fillRect(x - torW / 2, legTop + liftL, lw, legH - liftL);
+  ctx.fillRect(x + torW / 2 - lw, legTop + liftR, lw, legH - liftR);
+
+  // arms
+  ctx.fillStyle = dark;
+  ctx.fillRect(x - torW / 2 - 1, torTop + 1, 1, torH - 2);
+  ctx.fillRect(x + torW / 2, torTop + 1, 1, torH - 2);
+
+  // torso + lit core
+  ctx.fillStyle = mid;
+  ctx.fillRect(x - torW / 2, torTop, torW, torH);
+  ctx.fillStyle = ch.color;
+  ctx.fillRect(x - 1, torTop + 1, b ? 3 : 2, torH - 2);
+
+  // head + visor eye on the facing side
+  ctx.fillStyle = mid;
+  ctx.fillRect(x - headW / 2, headTop, headW, headH);
   ctx.fillStyle = "#fff";
-  ctx.fillRect(x + s, y - 2 * s, s, s);
+  const ex = ch.face < 0 ? x - headW / 2 + 1 : x + headW / 2 - 2;
+  ctx.fillRect(ex, headTop + (b ? 2 : 1), b ? 2 : 1, 1);
+
+  // boss crown + pauldrons
+  if (b) {
+    ctx.fillStyle = ch.color;
+    ctx.fillRect(x - 1, headTop - 2, 2, 2);
+    ctx.fillStyle = dark;
+    ctx.fillRect(x - torW / 2 - 1, torTop, 2, 2);
+    ctx.fillRect(x + torW / 2 - 1, torTop, 2, 2);
+  }
 }
 
 function drawMinimap(ctx: CanvasRenderingContext2D, active: Record<string, number>, now: number) {
@@ -439,11 +696,17 @@ function hexA(hex: string, a: number) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
+// Darken a hex colour toward black by factor f (0..1).
+function shade(hex: string, f: number) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgb(${(((n >> 16) & 255) * f) | 0},${(((n >> 8) & 255) * f) | 0},${((n & 255) * f) | 0})`;
+}
 
 /* ───────────────────────────── component ───────────────────────────────── */
 function Station() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const beadsRef = useRef<Bead[]>([]);
+  const charsRef = useRef<Character[]>([]);
   const activeRef = useRef<Record<string, number>>({});
   const pausedRef = useRef(false);
 
@@ -490,6 +753,9 @@ function Station() {
     off.height = H;
     drawStatic(off.getContext("2d")!, stars);
 
+    // crew that walks around the rooms
+    charsRef.current = initCharacters();
+
     let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
@@ -505,13 +771,15 @@ function Station() {
           } else alive.push(b);
         }
         beadsRef.current = alive;
+        // move the crew
+        updateCharacters(charsRef.current, dt, activeRef.current);
         // decay activity heat
         for (const k in activeRef.current) {
           activeRef.current[k] = Math.max(0, activeRef.current[k] - dt * 0.0009);
         }
       }
       ctx.drawImage(off, 0, 0);
-      drawDynamic(ctx, beadsRef.current, activeRef.current, now);
+      drawDynamic(ctx, beadsRef.current, charsRef.current, activeRef.current, now);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
