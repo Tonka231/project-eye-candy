@@ -396,52 +396,37 @@ function polyline(ctx: CanvasRenderingContext2D, pts: [number, number][]) {
   for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]);
 }
 
-// Procedural Milky-Way sky: a diagonal haze band, dust patches and layered
-// stars — used until a real starfield photo is dropped in at public/station-bg.jpg.
+// Calm, dense starfield on near-black — like the reference photo. No bright
+// galactic band; just a very faint haze so it isn't flat. A real photo can still
+// be dropped in at public/station-bg.jpg.
 function drawMilkyWay(
   ctx: CanvasRenderingContext2D,
   stars: { x: number; y: number; b: number; s: number }[],
 ) {
-  ctx.fillStyle = "#04050a";
+  ctx.fillStyle = "#040507";
   ctx.fillRect(0, 0, W, H);
-  // diagonal galactic haze band
-  ctx.save();
-  ctx.translate(W * 0.42, H * 0.5);
-  ctx.rotate(-0.5);
-  const band = ctx.createLinearGradient(0, -220, 0, 220);
-  band.addColorStop(0, "rgba(120,140,170,0)");
-  band.addColorStop(0.5, "rgba(150,165,195,0.15)");
-  band.addColorStop(1, "rgba(120,140,170,0)");
-  ctx.fillStyle = band;
-  ctx.fillRect(-W, -140, W * 2, 280);
-  // warm galactic core glow (like the photo's bright bulge)
-  const core = ctx.createRadialGradient(-120, 10, 10, -120, 10, 260);
-  core.addColorStop(0, "rgba(210,180,140,0.18)");
-  core.addColorStop(0.4, "rgba(150,150,170,0.1)");
-  core.addColorStop(1, "rgba(200,205,225,0)");
-  ctx.fillStyle = core;
-  ctx.fillRect(-W, -200, W * 2, 400);
-  // a cooler blue cluster further along the band
-  const blue = ctx.createRadialGradient(180, -20, 6, 180, -20, 150);
-  blue.addColorStop(0, "rgba(120,150,220,0.12)");
-  blue.addColorStop(1, "rgba(120,150,220,0)");
-  ctx.fillStyle = blue;
-  ctx.fillRect(-W, -200, W * 2, 400);
-  // dark dust lanes cutting across the band
-  ctx.fillStyle = "rgba(4,5,10,0.55)";
-  ctx.fillRect(-W, -12, W * 2, 9);
-  ctx.fillRect(-W, 26, W * 2, 6);
-  ctx.fillRect(-W, 60, W * 2, 4);
-  ctx.restore();
-  // layered stars
+  // two very faint haze blooms so the black isn't dead flat
+  for (const [hx, hy, col] of [
+    [W * 0.3, H * 0.4, "rgba(60,80,120,0.05)"],
+    [W * 0.72, H * 0.62, "rgba(90,70,110,0.04)"],
+  ] as const) {
+    const hz = ctx.createRadialGradient(hx, hy, 10, hx, hy, 340);
+    hz.addColorStop(0, col);
+    hz.addColorStop(1, "rgba(4,5,7,0)");
+    ctx.fillStyle = hz;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // dense layered stars
   for (const s of stars) {
-    ctx.fillStyle = `rgba(228,234,240,${s.b})`;
+    ctx.fillStyle = `rgba(232,238,244,${s.b})`;
     ctx.fillRect(s.x, s.y, 1, 1);
     if (s.s > 0) {
-      // brighter star with a soft cross glow
-      ctx.fillStyle = `rgba(228,234,240,${s.b * 0.35})`;
-      ctx.fillRect(s.x - 1, s.y, 3, 1);
-      ctx.fillRect(s.x, s.y - 1, 1, 3);
+      // a few brighter stars get a soft 2px core + faint cross
+      ctx.fillStyle = `rgba(232,238,244,${s.b})`;
+      ctx.fillRect(s.x, s.y, 2, 2);
+      ctx.fillStyle = `rgba(232,238,244,${s.b * 0.3})`;
+      ctx.fillRect(s.x - 1, s.y, 4, 1);
+      ctx.fillRect(s.x, s.y - 1, 1, 4);
     }
   }
 }
@@ -468,9 +453,9 @@ function drawStatic(
   g.addColorStop(1, "rgba(4,5,10,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // ── the ship itself: external structure, hull plate, spars, then rooms ──
+  // ── the ship: external structure + connecting spars on the starfield, then
+  // the modules. NO solid hull plate — space stays visible everywhere. ──
   drawStationExternals(ctx);
-  drawStationHull(ctx);
   drawCorridors(ctx);
   for (const r of ROOMS) drawRoom(ctx, r);
 }
@@ -504,66 +489,6 @@ function drawCorridors(ctx: CanvasRenderingContext2D) {
     ctx.stroke();
     ctx.setLineDash([]);
   }
-}
-
-// The unified station hull: one dark armoured plate behind every module with
-// plating, seams, rivets and a bright edge trim — turns boxes into a spaceship.
-function drawStationHull(ctx: CanvasRenderingContext2D) {
-  const { x, y, w, h } = STATION;
-  const rad = 46;
-  ctx.save();
-  roundRectPath(ctx, x, y, w, h, rad);
-  ctx.clip();
-  // base plate with a soft vertical bevel
-  const grd = ctx.createLinearGradient(0, y, 0, y + h);
-  grd.addColorStop(0, "#12161d");
-  grd.addColorStop(0.5, "#0c0f15");
-  grd.addColorStop(1, "#090c11");
-  ctx.fillStyle = grd;
-  ctx.fillRect(x, y, w, h);
-  // plating seams
-  ctx.strokeStyle = "rgba(255,255,255,0.03)";
-  ctx.lineWidth = 1;
-  for (let gx = x + 40; gx < x + w; gx += 56) {
-    ctx.beginPath();
-    ctx.moveTo(gx + 0.5, y);
-    ctx.lineTo(gx + 0.5, y + h);
-    ctx.stroke();
-  }
-  for (let gy = y + 40; gy < y + h; gy += 56) {
-    ctx.beginPath();
-    ctx.moveTo(x, gy + 0.5);
-    ctx.lineTo(x + w, gy + 0.5);
-    ctx.stroke();
-  }
-  // rivets at seam crossings
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  for (let gy = y + 40; gy < y + h; gy += 56)
-    for (let gx = x + 40; gx < x + w; gx += 56) ctx.fillRect(gx - 1, gy - 1, 2, 2);
-  // inner edge shadow
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.lineWidth = 10;
-  roundRectPath(ctx, x + 5, y + 5, w - 10, h - 10, rad - 6);
-  ctx.stroke();
-  ctx.restore();
-  // bright hull trim (the ship's outline)
-  ctx.strokeStyle = "#05070b";
-  ctx.lineWidth = 6;
-  roundRectPath(ctx, x, y, w, h, rad);
-  ctx.stroke();
-  ctx.strokeStyle = hexA(EDGE, 0.55);
-  ctx.lineWidth = 2;
-  roundRectPath(ctx, x - 1, y - 1, w + 2, h + 2, rad + 1);
-  ctx.stroke();
-  // corner hazard blocks
-  ctx.fillStyle = hexA(C.amber, 0.5);
-  for (const [ox, oy] of [
-    [x + 10, y + 10],
-    [x + w - 26, y + 10],
-    [x + 10, y + h - 14],
-    [x + w - 26, y + h - 14],
-  ])
-    ctx.fillRect(ox, oy, 16, 4);
 }
 
 // External ship structure hung off the hull edges: comms dish, antenna masts,
@@ -663,68 +588,80 @@ type Prop =
   | "press"
   | "ledger";
 
-// Rounded-rectangle path helper (falls back gracefully on older canvases).
-function roundRectPath(
+// Octagonal chamfered-rectangle path: the four corners are cut at 45° by `cut`
+// pixels — the video's angular module frames.
+function chamferPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  rad: number,
+  cut: number,
 ) {
-  const rr = Math.min(rad, w / 2, h / 2);
+  const c = Math.min(cut, w / 2, h / 2);
   ctx.beginPath();
-  if (typeof ctx.roundRect === "function") {
-    ctx.roundRect(x, y, w, h, rr);
-  } else {
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  }
+  ctx.moveTo(x + c, y);
+  ctx.lineTo(x + w - c, y);
+  ctx.lineTo(x + w, y + c);
+  ctx.lineTo(x + w, y + h - c);
+  ctx.lineTo(x + w - c, y + h);
+  ctx.lineTo(x + c, y + h);
+  ctx.lineTo(x, y + h - c);
+  ctx.lineTo(x, y + c);
+  ctx.closePath();
 }
 
-// Thick dark station hull around a room: rounded metal frame with a bevel, a
-// bright inner edge and small corner tech notches — the video's chunky border.
+const CHAMFER = 16; // corner cut size for the module frames
+
+// Thick dark ANGULAR module frame: a chunky chamfered (octagonal) armoured
+// border with a bevel, a bright inner edge and lit corner bolts — the video's
+// angular module look.
 function drawHull(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
   ctx.save();
-  ctx.lineJoin = "round";
-  // outer dark metal frame
-  ctx.strokeStyle = "#0b0d13";
-  ctx.lineWidth = 8;
-  roundRectPath(ctx, r.x + 4, r.y + 4, r.w - 8, r.h - 8, 12);
+  ctx.lineJoin = "miter";
+  // heavy outer dark frame
+  ctx.strokeStyle = "#090b11";
+  ctx.lineWidth = 12;
+  chamferPath(ctx, r.x + 6, r.y + 6, r.w - 12, r.h - 12, CHAMFER);
   ctx.stroke();
-  // lighter bevel highlight
-  ctx.strokeStyle = "#20242e";
-  ctx.lineWidth = 2;
-  roundRectPath(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, 12);
+  // mid metal band
+  ctx.strokeStyle = "#171b24";
+  ctx.lineWidth = 6;
+  chamferPath(ctx, r.x + 4, r.y + 4, r.w - 8, r.h - 8, CHAMFER);
   ctx.stroke();
-  // bright inner edge (cyan)
-  ctx.strokeStyle = hexA(EDGE, 0.7);
+  // bevel highlight
+  ctx.strokeStyle = "#2a303c";
   ctx.lineWidth = 1;
-  roundRectPath(ctx, r.x + 8, r.y + 8, r.w - 16, r.h - 16, 7);
+  chamferPath(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, CHAMFER);
+  ctx.stroke();
+  // bright inner edge trim
+  ctx.strokeStyle = hexA(EDGE, 0.8);
+  ctx.lineWidth = 1;
+  chamferPath(ctx, r.x + 11, r.y + 11, r.w - 22, r.h - 22, CHAMFER - 6);
   ctx.stroke();
   ctx.restore();
-  // corner tech notches
-  ctx.fillStyle = hexA(tint, 0.8);
-  const n = 6;
+  // lit bolts on the chamfer diagonals
+  ctx.fillStyle = hexA(tint, 0.9);
+  const b = CHAMFER;
   for (const [ox, oy] of [
-    [r.x + 6, r.y + 6],
-    [r.x + r.w - 6 - n, r.y + 6],
-    [r.x + 6, r.y + r.h - 6 - 2],
-    [r.x + r.w - 6 - n, r.y + r.h - 6 - 2],
+    [r.x + b - 2, r.y + b - 2],
+    [r.x + r.w - b, r.y + b - 2],
+    [r.x + b - 2, r.y + r.h - b],
+    [r.x + r.w - b, r.y + r.h - b],
   ]) {
-    ctx.fillRect(ox, oy, n, 2);
+    ctx.fillRect(ox, oy, 2, 2);
   }
+  // amber hazard ticks on the top & bottom edges
+  ctx.fillStyle = hexA(C.amber, 0.7);
+  ctx.fillRect(cx(r) - 14, r.y + 3, 28, 2);
+  ctx.fillRect(cx(r) - 14, r.y + r.h - 5, 28, 2);
 }
 
 function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   const th = ROOM_THEME[r.theme];
-  // clip everything to a rounded rectangle so the module has soft corners
+  // clip everything to the angular chamfered module shape
   ctx.save();
-  roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
+  chamferPath(ctx, r.x, r.y, r.w, r.h, CHAMFER);
   ctx.clip();
 
   // floor base + a tinted radial vignette so the interior glows from the middle
@@ -776,35 +713,87 @@ function drawTopScreens(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
   }
 }
 
-// A CLEAN floor: subtle panel grid, a walkway seam and a wall hazard stripe.
-// No random micro-components — the hand-authored scene props carry the room.
+// Deterministic hash → 0..1 (stable per pixel, no shared RNG needed).
+function hsh(a: number, b: number) {
+  let t = ((a | 0) * 374761393 + (b | 0) * 668265263) >>> 0;
+  t = Math.imul(t ^ (t >>> 13), 1274126177) >>> 0;
+  return ((t ^ (t >>> 16)) >>> 0) / 4294967296;
+}
+
+// A DENSE but STRUCTURED machine floor: the whole area is tiled edge-to-edge
+// with chunky mini-fixtures (panels, vents, LED banks, pipe junctions, screens)
+// so the module looks packed like the video — not random 1px noise.
 function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
   const top = r.y + 26;
-  const bot = r.y + r.h - 12;
+  const bot = r.y + r.h - 14;
   const left = r.x + 12;
   const right = r.x + r.w - 12;
-  // subtle floor panel grid (large tiles)
-  ctx.strokeStyle = hexA(tint, 0.05);
-  ctx.lineWidth = 1;
-  for (let gx = left; gx < right; gx += 30) {
-    ctx.beginPath();
-    ctx.moveTo(gx + 0.5, top);
-    ctx.lineTo(gx + 0.5, bot);
-    ctx.stroke();
+  const leds = [C.amber, C.toxic, C.steel, C.ember, C.violet];
+  const cell = 11;
+
+  for (let gy = top; gy <= bot - 8; gy += cell) {
+    for (let gx = left; gx <= right - 8; gx += cell) {
+      const v = hsh(gx, gy);
+      // accent colour: biased toward the room tint so each room reads its colour
+      const acc = hsh(gx * 3, gy * 7) < 0.55 ? tint : leds[(hsh(gx, gy * 5) * leds.length) | 0];
+      // dark equipment base fills the tile (keeps the floor packed & dark)
+      ctx.fillStyle = "#080b11";
+      ctx.fillRect(gx, gy, 9, 9);
+      ctx.fillStyle = "#05070c";
+      ctx.fillRect(gx + 1, gy + 1, 7, 7);
+      if (v < 0.2) {
+        // control panel: lit top edge + readouts
+        ctx.fillStyle = hexA(acc, 0.55);
+        ctx.fillRect(gx + 1, gy + 1, 7, 1);
+        ctx.fillStyle = hexA(acc, 0.9);
+        ctx.fillRect(gx + 2, gy + 3, 2, 1);
+        ctx.fillRect(gx + 2, gy + 5, 4, 1);
+      } else if (v < 0.38) {
+        // vent slats
+        ctx.fillStyle = hexA(tint, 0.28);
+        for (let sy = gy + 2; sy < gy + 8; sy += 2) ctx.fillRect(gx + 2, sy, 5, 1);
+      } else if (v < 0.56) {
+        // aligned LED bank (rows of dots — structured, not scattered)
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = hexA(hsh(gx + i, gy) < 0.5 ? tint : C.amber, 0.9);
+          ctx.fillRect(gx + 2 + i * 2, gy + 2, 1, 1);
+          ctx.fillRect(gx + 2 + i * 2, gy + 5, 1, 1);
+        }
+      } else if (v < 0.72) {
+        // pipe junction (plus)
+        ctx.fillStyle = hexA(tint, 0.35);
+        ctx.fillRect(gx, gy + 4, 9, 1);
+        ctx.fillRect(gx + 4, gy, 1, 9);
+        ctx.fillStyle = hexA(acc, 0.8);
+        ctx.fillRect(gx + 4, gy + 4, 1, 1);
+      } else if (v < 0.86) {
+        // solid machine block with corner bolts
+        ctx.fillStyle = "#11151d";
+        ctx.fillRect(gx + 1, gy + 1, 7, 7);
+        ctx.fillStyle = hexA(tint, 0.5);
+        ctx.fillRect(gx + 1, gy + 1, 7, 1);
+        ctx.fillStyle = "#05070c";
+        ctx.fillRect(gx + 1, gy + 1, 1, 1);
+        ctx.fillRect(gx + 7, gy + 1, 1, 1);
+        ctx.fillRect(gx + 1, gy + 7, 1, 1);
+        ctx.fillRect(gx + 7, gy + 7, 1, 1);
+      } else {
+        // tiny screen
+        ctx.fillStyle = hexA(acc, 0.4);
+        ctx.fillRect(gx + 2, gy + 2, 5, 5);
+        ctx.fillStyle = hexA(acc, 0.9);
+        ctx.fillRect(gx + 2, gy + 3, 3, 1);
+      }
+    }
   }
-  for (let gy = top; gy < bot; gy += 30) {
-    ctx.beginPath();
-    ctx.moveTo(left, gy + 0.5);
-    ctx.lineTo(right, gy + 0.5);
-    ctx.stroke();
-  }
+
+  // a couple of bright horizontal cable buses crossing the equipment
+  ctx.fillStyle = hexA(tint, 0.3);
+  ctx.fillRect(left, top + Math.round((bot - top) * 0.55), right - left, 1);
   // side conduits
-  ctx.fillStyle = hexA(tint, 0.16);
+  ctx.fillStyle = hexA(tint, 0.22);
   ctx.fillRect(r.x + 9, top, 2, bot - top);
   ctx.fillRect(r.x + r.w - 11, top, 2, bot - top);
-  // hazard stripe along the bottom wall
-  ctx.fillStyle = hexA(C.amber, 0.12);
-  for (let sx0 = left; sx0 < right - 4; sx0 += 12) ctx.fillRect(sx0, bot - 2, 6, 2);
 }
 
 // ── each room is a hand-authored scene with its own centrepiece (x,y are
@@ -1380,15 +1369,15 @@ function drawDynamic(
     const heat = active[r.id] ?? 0;
     const pulse = 0.35 + 0.25 * Math.sin(now / 320 + r.x);
     const glow = Math.min(1, pulse + heat);
-    // cyan frame glow (rounded to match the hull)
+    // cyan frame glow (chamfered to match the module hull)
     ctx.strokeStyle = hexA(EDGE, 0.14 + 0.4 * glow);
     ctx.lineWidth = 2;
-    roundRectPath(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 12);
+    chamferPath(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, CHAMFER);
     ctx.stroke();
     if (heat > 0.05) {
       // tinted outer halo + the signature big radial room glow
       ctx.strokeStyle = hexA(th.tint, 0.3 * heat);
-      roundRectPath(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, 14);
+      chamferPath(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, CHAMFER);
       ctx.stroke();
       const rg = ctx.createRadialGradient(cx(r), cy(r), 2, cx(r), cy(r), r.w * 0.62);
       rg.addColorStop(0, hexA(th.tint, 0.55 * Math.min(1, heat)));
@@ -1651,13 +1640,13 @@ function Station() {
     const ctx = canvas.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
 
-    const stars = Array.from({ length: 260 }, () => {
+    const stars = Array.from({ length: 520 }, () => {
       const bright = Math.random();
       return {
         x: (Math.random() * W) | 0,
         y: (Math.random() * H) | 0,
-        b: 0.1 + bright * bright * 0.7,
-        s: bright > 0.82 ? 1 : 0,
+        b: 0.12 + bright * bright * 0.75,
+        s: bright > 0.86 ? 1 : 0,
       };
     });
 
