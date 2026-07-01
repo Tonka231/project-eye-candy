@@ -98,6 +98,19 @@ const EDGES: [string, string][] = [
   ["cite", "rep"],
 ];
 
+// Overall station footprint — the bounding box of every room plus a margin.
+// The hull plate is drawn across this so the modules read as ONE spaceship.
+const STATION = (() => {
+  const xs = ROOMS.flatMap((r) => [r.x, r.x + r.w]);
+  const ys = ROOMS.flatMap((r) => [r.y, r.y + r.h]);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  const x1 = Math.max(...xs);
+  const y1 = Math.max(...ys);
+  const m = 30;
+  return { x: x0 - m, y: y0 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
+})();
+
 // L-shaped path between two room centres (elbow at target.x / source.y).
 function pathOf(a: Room, b: Room): [number, number][] {
   return [
@@ -441,50 +454,175 @@ function drawStatic(
   g.addColorStop(1, "rgba(4,5,10,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // corridors as lit tubes with side rails
+  // ── the ship itself: external structure, hull plate, spars, then rooms ──
+  drawStationExternals(ctx);
+  drawStationHull(ctx);
+  drawCorridors(ctx);
+  for (const r of ROOMS) drawRoom(ctx, r);
+}
+
+// Reinforced structural corridors that run across the hull between the modules.
+function drawCorridors(ctx: CanvasRenderingContext2D) {
   ctx.lineJoin = "round";
-  ctx.lineCap = "round";
+  ctx.lineCap = "butt";
   for (const [a, b] of EDGES) {
     const pts = edgePath(a, b);
+    // outer casing
     polyline(ctx, pts);
-    ctx.strokeStyle = hexA(C.ash, 0.28);
+    ctx.strokeStyle = "#161a22";
     ctx.lineWidth = 26;
     ctx.stroke();
-    ctx.strokeStyle = "#080a12";
+    // bright structural edges
+    polyline(ctx, pts);
+    ctx.strokeStyle = hexA(EDGE, 0.35);
+    ctx.lineWidth = 26;
+    ctx.stroke();
+    // dark inner channel
+    polyline(ctx, pts);
+    ctx.strokeStyle = "#080a10";
     ctx.lineWidth = 20;
     ctx.stroke();
-    // rails
-    ctx.strokeStyle = hexA(EDGE, 0.14);
-    ctx.lineWidth = 22;
-    ctx.stroke();
-    ctx.strokeStyle = "#080a12";
-    ctx.lineWidth = 18;
-    ctx.stroke();
     // dashed centre line
-    ctx.strokeStyle = hexA(C.ash, 0.16);
-    ctx.setLineDash([4, 8]);
+    polyline(ctx, pts);
+    ctx.strokeStyle = hexA(C.ash, 0.2);
+    ctx.setLineDash([5, 9]);
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  // rooms
-  for (const r of ROOMS) drawRoom(ctx, r);
 }
 
-// The palette of real objects each room is furnished with (placed across the
-// whole floor, not just a wall) so every room reads as a lived-in module.
-const FURN: Record<string, Prop[]> = {
-  cmd: ["console", "reactor", "console", "screen", "desk", "console"],
-  resA: ["desk", "rack", "desk", "rack", "console", "chair"],
-  resB: ["rack", "desk", "console", "rack", "desk", "chair"],
-  resG: ["desk", "console", "rack", "desk", "rack", "chair"],
-  fact: ["screen", "desk", "console", "table", "screen"],
-  confl: ["screen", "crate", "console", "barrel", "screen"],
-  synth: ["reactor", "console", "desk", "tank", "screen"],
-  crit: ["plant", "desk", "console", "table", "plant"],
-  cite: ["desk", "console", "screen", "table", "console"],
-  rep: ["console", "pod", "crate", "desk", "barrel"],
-};
+// The unified station hull: one dark armoured plate behind every module with
+// plating, seams, rivets and a bright edge trim — turns boxes into a spaceship.
+function drawStationHull(ctx: CanvasRenderingContext2D) {
+  const { x, y, w, h } = STATION;
+  const rad = 46;
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, rad);
+  ctx.clip();
+  // base plate with a soft vertical bevel
+  const grd = ctx.createLinearGradient(0, y, 0, y + h);
+  grd.addColorStop(0, "#12161d");
+  grd.addColorStop(0.5, "#0c0f15");
+  grd.addColorStop(1, "#090c11");
+  ctx.fillStyle = grd;
+  ctx.fillRect(x, y, w, h);
+  // plating seams
+  ctx.strokeStyle = "rgba(255,255,255,0.03)";
+  ctx.lineWidth = 1;
+  for (let gx = x + 40; gx < x + w; gx += 56) {
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.5, y);
+    ctx.lineTo(gx + 0.5, y + h);
+    ctx.stroke();
+  }
+  for (let gy = y + 40; gy < y + h; gy += 56) {
+    ctx.beginPath();
+    ctx.moveTo(x, gy + 0.5);
+    ctx.lineTo(x + w, gy + 0.5);
+    ctx.stroke();
+  }
+  // rivets at seam crossings
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  for (let gy = y + 40; gy < y + h; gy += 56)
+    for (let gx = x + 40; gx < x + w; gx += 56) ctx.fillRect(gx - 1, gy - 1, 2, 2);
+  // inner edge shadow
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 10;
+  roundRectPath(ctx, x + 5, y + 5, w - 10, h - 10, rad - 6);
+  ctx.stroke();
+  ctx.restore();
+  // bright hull trim (the ship's outline)
+  ctx.strokeStyle = "#05070b";
+  ctx.lineWidth = 6;
+  roundRectPath(ctx, x, y, w, h, rad);
+  ctx.stroke();
+  ctx.strokeStyle = hexA(EDGE, 0.55);
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, x - 1, y - 1, w + 2, h + 2, rad + 1);
+  ctx.stroke();
+  // corner hazard blocks
+  ctx.fillStyle = hexA(C.amber, 0.5);
+  for (const [ox, oy] of [
+    [x + 10, y + 10],
+    [x + w - 26, y + 10],
+    [x + 10, y + h - 14],
+    [x + w - 26, y + h - 14],
+  ])
+    ctx.fillRect(ox, oy, 16, 4);
+}
+
+// External ship structure hung off the hull edges: comms dish, antenna masts,
+// docking arms and an engine block — so it clearly reads as a vessel in space.
+function drawStationExternals(ctx: CanvasRenderingContext2D) {
+  const { x, y, w, h } = STATION;
+  const strut = "#141821";
+  const strutHi = "#232a35";
+
+  // helper: a boxy strut with a highlighted top edge
+  const bar = (bx: number, by: number, bw: number, bh: number) => {
+    ctx.fillStyle = strut;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = strutHi;
+    ctx.fillRect(bx, by, bw, 1);
+  };
+
+  // ── comms dish, top-left (like the video) ──
+  const dx = x + 46;
+  const dy = y - 30;
+  bar(dx - 2, dy, 4, 40); // mast
+  ctx.strokeStyle = strutHi;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(dx, dy - 4, 22, Math.PI * 0.15, Math.PI * 0.85, false); // dish bowl
+  ctx.stroke();
+  ctx.strokeStyle = hexA(EDGE, 0.5);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(dx, dy - 4, 22, Math.PI * 0.15, Math.PI * 0.85, false);
+  ctx.stroke();
+  ctx.fillStyle = hexA(C.amber, 0.9);
+  ctx.fillRect(dx - 1, dy - 10, 2, 2); // feed horn
+
+  // ── antenna masts along the top ──
+  for (const ax of [x + w * 0.5, x + w * 0.78]) {
+    bar(ax, y - 24, 2, 24);
+    ctx.fillStyle = hexA(C.scan, 0.9);
+    ctx.fillRect(ax - 1, y - 26, 4, 3);
+  }
+
+  // ── docking arms on the sides ──
+  for (const side of [-1, 1]) {
+    const ax = side < 0 ? x - 26 : x + w + 2;
+    const ay = y + h * 0.42;
+    bar(ax, ay, 26, 10); // arm
+    bar(side < 0 ? ax - 6 : ax + 26, ay - 8, 6, 26); // clamp head
+    ctx.fillStyle = hexA(EDGE, 0.6);
+    ctx.fillRect(side < 0 ? ax - 6 : ax + 26, ay + 2, 6, 2);
+  }
+
+  // ── engine block along the bottom, with nozzle glow ──
+  const ey = y + h;
+  for (let i = 0; i < 5; i++) {
+    const ex = x + w * (0.2 + i * 0.15);
+    bar(ex - 14, ey, 28, 16); // housing
+    ctx.fillStyle = "#05070b";
+    ctx.fillRect(ex - 9, ey + 12, 18, 8); // nozzle mouth
+    const gl = ctx.createRadialGradient(ex, ey + 20, 2, ex, ey + 20, 16);
+    gl.addColorStop(0, hexA(EDGE, 0.5));
+    gl.addColorStop(1, hexA(EDGE, 0));
+    ctx.fillStyle = gl;
+    ctx.fillRect(ex - 16, ey + 12, 32, 22);
+  }
+
+  // ── a few hull greebles / running lights around the frame ──
+  ctx.fillStyle = hexA(C.toxic, 0.8);
+  ctx.fillRect(x + w * 0.33, y - 4, 3, 3);
+  ctx.fillStyle = hexA(C.scan, 0.8);
+  ctx.fillRect(x + w * 0.66, y + h + 1, 3, 3);
+}
+
+// All recognisable objects a room scene can be built from.
 type Prop =
   | "rack"
   | "console"
@@ -497,19 +635,19 @@ type Prop =
   | "chair"
   | "table"
   | "tank"
-  | "barrel";
-
-// Small deterministic PRNG so the dense interior is stable frame-to-frame.
-function mulberry(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+  | "barrel"
+  | "throne"
+  | "holotable"
+  | "bookshelf"
+  | "datacore"
+  | "dish"
+  | "evidenceboard"
+  | "twinscreens"
+  | "forge"
+  | "pedestal"
+  | "filecabinet"
+  | "press"
+  | "ledger";
 
 // Rounded-rectangle path helper (falls back gracefully on older canvases).
 function roundRectPath(
@@ -584,14 +722,14 @@ function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   ctx.fillStyle = vg;
   ctx.fillRect(r.x, r.y, r.w, r.h);
 
-  // dense circuit-board interior packed across the whole floor
+  // clean floor
   drawRoomDetail(ctx, r, th.tint);
 
   // row of readout screens along the top wall
   drawTopScreens(ctx, r, th.tint);
 
-  // a few recognisable machines dotted among the circuitry
-  placeProps(ctx, r, th.tint);
+  // the room's unique hand-authored scene
+  drawScene(ctx, r, th.tint);
 
   // bright horizontal light bar across the upper third (the clip's cyan strip)
   const barY = Math.round(r.y + r.h * 0.32);
@@ -624,97 +762,124 @@ function drawTopScreens(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
   }
 }
 
-// Dense circuit-board texture: fine grid, packed micro-components, traces and
-// multi-coloured LEDs — makes each module read like a motherboard from above.
+// A CLEAN floor: subtle panel grid, a walkway seam and a wall hazard stripe.
+// No random micro-components — the hand-authored scene props carry the room.
 function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
   const top = r.y + 26;
   const bot = r.y + r.h - 12;
-  const left = r.x + 10;
-  const right = r.x + r.w - 10;
-  const leds = [tint, C.amber, C.toxic, C.scan, C.violet];
-
-  // fine base grid
-  ctx.strokeStyle = hexA(tint, 0.06);
+  const left = r.x + 12;
+  const right = r.x + r.w - 12;
+  // subtle floor panel grid (large tiles)
+  ctx.strokeStyle = hexA(tint, 0.05);
   ctx.lineWidth = 1;
-  for (let gx = left; gx < right; gx += 12) {
+  for (let gx = left; gx < right; gx += 30) {
     ctx.beginPath();
     ctx.moveTo(gx + 0.5, top);
     ctx.lineTo(gx + 0.5, bot);
     ctx.stroke();
   }
-  for (let gy = top; gy < bot; gy += 12) {
+  for (let gy = top; gy < bot; gy += 30) {
     ctx.beginPath();
     ctx.moveTo(left, gy + 0.5);
     ctx.lineTo(right, gy + 0.5);
     ctx.stroke();
   }
-
-  // packed micro-components on a tight jittered grid
-  for (let gy = top; gy < bot - 3; gy += 9) {
-    for (let gx = left; gx < right - 3; gx += 9) {
-      const roll = rng();
-      const px = gx + ((rng() * 3) | 0);
-      const py = gy + ((rng() * 3) | 0);
-      if (roll < 0.42) {
-        // dark chip with a lit top edge
-        const w = 3 + ((rng() * 4) | 0);
-        const h = 2 + ((rng() * 3) | 0);
-        ctx.fillStyle = "#04060a";
-        ctx.fillRect(px, py, w, h);
-        ctx.fillStyle = hexA(tint, 0.45 + rng() * 0.3);
-        ctx.fillRect(px, py, w, 1);
-        if (rng() < 0.3) {
-          ctx.fillStyle = hexA(leds[(rng() * leds.length) | 0], 0.9);
-          ctx.fillRect(px + 1, py + 1, 1, 1);
-        }
-      } else if (roll < 0.56) {
-        // conductor trace
-        ctx.fillStyle = hexA(tint, 0.22);
-        if (rng() < 0.5) ctx.fillRect(px, py + 1, 7, 1);
-        else ctx.fillRect(px + 1, py, 1, 7);
-      } else if (roll < 0.74) {
-        // bright LED
-        ctx.fillStyle = hexA(leds[(rng() * leds.length) | 0], 0.85);
-        ctx.fillRect(px, py, 1, 1);
-        if (rng() < 0.25) ctx.fillRect(px + 2, py + 1, 1, 1);
-      }
-    }
-  }
-
-  // conduits down the side walls
-  ctx.fillStyle = hexA(tint, 0.18);
+  // side conduits
+  ctx.fillStyle = hexA(tint, 0.16);
   ctx.fillRect(r.x + 9, top, 2, bot - top);
   ctx.fillRect(r.x + r.w - 11, top, 2, bot - top);
+  // hazard stripe along the bottom wall
+  ctx.fillStyle = hexA(C.amber, 0.12);
+  for (let sx0 = left; sx0 < right - 4; sx0 += 12) ctx.fillRect(sx0, bot - 2, 6, 2);
 }
 
-// Lays the room's furniture palette across the floor on a jittered grid so each
-// room looks packed with recognisable objects rather than abstract noise.
-function placeProps(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const rng = mulberry((((r.x + 11) * 73856093) ^ ((r.y + 7) * 19349663)) >>> 0);
-  const palette = FURN[r.id] ?? ["console"];
-  const cw = 52;
-  const ch = 52;
-  const left = r.x + 18;
-  const right = r.x + r.w - 34;
-  const top = r.y + 44;
-  const bot = r.y + r.h - 40;
-  let k = 0;
-  // gather cells first, then draw sorted by y so lower objects overlap upper
-  const cells: { x: number; y: number; p: Prop }[] = [];
-  for (let gy = top; gy <= bot; gy += ch) {
-    for (let gx = left; gx <= right; gx += cw) {
-      if (rng() < 0.45) continue; // sparser — the circuitry fills the gaps
-      const p = palette[k++ % palette.length];
-      cells.push({
-        x: Math.round(gx + rng() * 8),
-        y: Math.round(gy + rng() * 8),
-        p,
-      });
-    }
-  }
-  cells.sort((a, b) => a.y - b.y);
-  for (const c of cells) drawProp(ctx, c.p, c.x, c.y, tint);
+// ── each room is a hand-authored scene with its own centrepiece (x,y are
+// fractions 0..1 of the usable floor) so no two rooms look alike ──
+interface SceneItem {
+  kind: Prop;
+  x: number;
+  y: number;
+}
+const ROOM_SCENE: Record<string, SceneItem[]> = {
+  cmd: [
+    { kind: "screen", x: 0.08, y: 0.02 },
+    { kind: "screen", x: 0.78, y: 0.02 },
+    { kind: "throne", x: 0.44, y: 0.05 },
+    { kind: "holotable", x: 0.36, y: 0.45 },
+    { kind: "console", x: 0.05, y: 0.62 },
+    { kind: "console", x: 0.82, y: 0.62 },
+  ],
+  resA: [
+    { kind: "bookshelf", x: 0.06, y: 0.05 },
+    { kind: "bookshelf", x: 0.06, y: 0.55 },
+    { kind: "bookshelf", x: 0.74, y: 0.05 },
+    { kind: "bookshelf", x: 0.74, y: 0.55 },
+    { kind: "desk", x: 0.4, y: 0.62 },
+  ],
+  resB: [
+    { kind: "datacore", x: 0.4, y: 0.32 },
+    { kind: "console", x: 0.06, y: 0.28 },
+    { kind: "console", x: 0.82, y: 0.28 },
+    { kind: "desk", x: 0.08, y: 0.66 },
+    { kind: "desk", x: 0.78, y: 0.66 },
+  ],
+  resG: [
+    { kind: "dish", x: 0.38, y: 0.08 },
+    { kind: "screen", x: 0.78, y: 0.28 },
+    { kind: "console", x: 0.1, y: 0.62 },
+    { kind: "console", x: 0.42, y: 0.66 },
+    { kind: "console", x: 0.72, y: 0.62 },
+  ],
+  fact: [
+    { kind: "evidenceboard", x: 0.06, y: 0.06 },
+    { kind: "table", x: 0.44, y: 0.5 },
+    { kind: "desk", x: 0.72, y: 0.5 },
+    { kind: "screen", x: 0.74, y: 0.04 },
+  ],
+  confl: [
+    { kind: "twinscreens", x: 0.3, y: 0.32 },
+    { kind: "console", x: 0.06, y: 0.6 },
+    { kind: "console", x: 0.8, y: 0.6 },
+    { kind: "barrel", x: 0.46, y: 0.7 },
+  ],
+  synth: [
+    { kind: "forge", x: 0.38, y: 0.4 },
+    { kind: "reactor", x: 0.06, y: 0.42 },
+    { kind: "reactor", x: 0.82, y: 0.42 },
+    { kind: "desk", x: 0.42, y: 0.72 },
+  ],
+  crit: [
+    { kind: "pedestal", x: 0.42, y: 0.42 },
+    { kind: "console", x: 0.08, y: 0.58 },
+    { kind: "console", x: 0.78, y: 0.58 },
+    { kind: "screen", x: 0.42, y: 0.04 },
+  ],
+  cite: [
+    { kind: "filecabinet", x: 0.08, y: 0.28 },
+    { kind: "filecabinet", x: 0.28, y: 0.28 },
+    { kind: "filecabinet", x: 0.08, y: 0.62 },
+    { kind: "filecabinet", x: 0.28, y: 0.62 },
+    { kind: "ledger", x: 0.62, y: 0.5 },
+    { kind: "desk", x: 0.76, y: 0.58 },
+  ],
+  rep: [
+    { kind: "press", x: 0.32, y: 0.36 },
+    { kind: "crate", x: 0.74, y: 0.5 },
+    { kind: "crate", x: 0.82, y: 0.66 },
+    { kind: "desk", x: 0.08, y: 0.58 },
+  ],
+};
+
+// Draw a room's authored scene, back-to-front by y for correct overlap.
+function drawScene(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
+  const items = ROOM_SCENE[r.id] ?? [];
+  const placed = items.map((it) => ({
+    kind: it.kind,
+    px: Math.round(r.x + 18 + it.x * (r.w - 44)),
+    py: Math.round(r.y + r.h * 0.18 + it.y * (r.h * 0.66)),
+  }));
+  placed.sort((a, b) => a.py - b.py);
+  for (const it of placed) drawProp(ctx, it.kind, it.px, it.py, tint);
 }
 
 // ── procedural pixel furniture (copyright-clean, drawn by hand) ──
@@ -937,6 +1102,251 @@ function drawProp(ctx: CanvasRenderingContext2D, kind: Prop, x: number, y: numbe
       ctx.fillRect(x + 6, y + 9, 4, 4);
       ctx.fillStyle = "#15100a";
       ctx.fillRect(x + 7, y + 10, 2, 2);
+      break;
+    }
+    case "throne": {
+      // commander's high-backed command seat, 18×22
+      shadow();
+      ctx.fillRect(x, y + 20, 18, 3);
+      ctx.fillStyle = "#1a1e28";
+      ctx.fillRect(x + 2, y + 8, 14, 12);
+      ctx.fillStyle = "#0d1017";
+      ctx.fillRect(x + 3, y, 12, 10); // high back
+      ctx.fillStyle = hexA(color, 0.85);
+      ctx.fillRect(x + 5, y + 2, 8, 2); // crest light
+      ctx.fillStyle = hexA(color, 0.5);
+      ctx.fillRect(x + 4, y + 12, 10, 3);
+      break;
+    }
+    case "holotable": {
+      // central strategy table with a holographic dome, 44×22
+      shadow();
+      ctx.fillRect(x, y + 16, 44, 4);
+      ctx.fillStyle = "#12161d";
+      ctx.fillRect(x + 4, y + 12, 36, 8);
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(x + 6, y + 18, 32, 2);
+      const hg = ctx.createRadialGradient(x + 22, y + 8, 2, x + 22, y + 8, 22);
+      hg.addColorStop(0, hexA(color, 0.6));
+      hg.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = hg;
+      ctx.fillRect(x - 2, y - 8, 48, 28);
+      ctx.strokeStyle = hexA(color, 0.85);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x + 22, y + 9, 14, 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(x + 22, y + 6, 8, 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x + 21, y + 4, 2, 2);
+      break;
+    }
+    case "bookshelf": {
+      // tall archive shelf with coloured spines, 22×32
+      shadow();
+      ctx.fillRect(x, y + 30, 22, 3);
+      ctx.fillStyle = "#14100a";
+      ctx.fillRect(x, y, 22, 31);
+      ctx.fillStyle = "#0a0806";
+      ctx.fillRect(x + 1, y + 1, 20, 29);
+      const spines = [color, C.amber, C.steel, C.toxic, C.ember, C.violet];
+      for (let sy = y + 2; sy < y + 29; sy += 7) {
+        ctx.fillStyle = "#0d0a07";
+        ctx.fillRect(x + 1, sy + 5, 20, 1);
+        for (let sx = x + 2; sx < x + 20; sx += 3) {
+          ctx.fillStyle = hexA(spines[(sx + sy) % spines.length], 0.7);
+          ctx.fillRect(sx, sy, 2, 5);
+        }
+      }
+      break;
+    }
+    case "datacore": {
+      // glowing central data tower, 24×40
+      shadow();
+      ctx.fillRect(x, y + 38, 26, 4);
+      ctx.fillStyle = "#0a0e15";
+      ctx.fillRect(x + 2, y, 20, 38);
+      ctx.fillStyle = "#05070c";
+      ctx.fillRect(x + 4, y + 2, 16, 34);
+      for (let by = y + 4; by < y + 35; by += 5) {
+        ctx.fillStyle = hexA(color, 0.7);
+        ctx.fillRect(x + 5, by, 14, 2);
+        ctx.fillStyle = hexA(color, 0.95);
+        ctx.fillRect(x + 5, by, 3, 2);
+      }
+      const cg = ctx.createLinearGradient(x, y, x, y + 38);
+      cg.addColorStop(0, hexA(color, 0.2));
+      cg.addColorStop(0.5, hexA(color, 0.95));
+      cg.addColorStop(1, hexA(color, 0.2));
+      ctx.fillStyle = cg;
+      ctx.fillRect(x + 11, y + 2, 2, 34);
+      break;
+    }
+    case "dish": {
+      // scanning dish array, 30×24
+      shadow();
+      ctx.fillRect(x + 10, y + 20, 10, 3);
+      ctx.fillStyle = "#1a1e28";
+      ctx.fillRect(x + 12, y + 10, 6, 12);
+      ctx.strokeStyle = "#2a3140";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x + 15, y + 12, 13, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+      ctx.strokeStyle = hexA(color, 0.6);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x + 15, y + 12, 13, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+      ctx.fillStyle = hexA(C.scan, 0.9);
+      ctx.fillRect(x + 14, y, 2, 3);
+      break;
+    }
+    case "evidenceboard": {
+      // pinboard with notes + threads, 34×24
+      shadow();
+      ctx.fillStyle = "#0c0f15";
+      ctx.fillRect(x, y, 34, 24);
+      ctx.fillStyle = "#171b22";
+      ctx.fillRect(x + 1, y + 1, 32, 22);
+      for (const [nx, ny] of [
+        [4, 4],
+        [14, 3],
+        [24, 5],
+        [7, 13],
+        [18, 14],
+        [27, 12],
+      ] as const) {
+        ctx.fillStyle = hexA(C.amber, 0.85);
+        ctx.fillRect(x + nx, y + ny, 5, 4);
+      }
+      ctx.strokeStyle = hexA(C.scan, 0.7);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + 6);
+      ctx.lineTo(x + 20, y + 16);
+      ctx.lineTo(x + 26, y + 6);
+      ctx.moveTo(x + 16, y + 5);
+      ctx.lineTo(x + 9, y + 15);
+      ctx.stroke();
+      break;
+    }
+    case "twinscreens": {
+      // two opposing screens with a red clash between, 40×22
+      shadow();
+      ctx.fillStyle = "#0d1018";
+      ctx.fillRect(x, y + 2, 12, 18);
+      ctx.fillRect(x + 28, y + 2, 12, 18);
+      ctx.fillStyle = hexA(C.deep, 0.5);
+      ctx.fillRect(x + 1, y + 3, 10, 16);
+      ctx.fillRect(x + 29, y + 3, 10, 16);
+      ctx.fillStyle = hexA(C.deep, 0.9);
+      for (let ly = y + 4; ly < y + 18; ly += 3) {
+        ctx.fillRect(x + 2, ly, 8, 1);
+        ctx.fillRect(x + 30, ly, 8, 1);
+      }
+      const sg = ctx.createRadialGradient(x + 20, y + 11, 1, x + 20, y + 11, 12);
+      sg.addColorStop(0, hexA(C.scan, 0.9));
+      sg.addColorStop(1, hexA(C.scan, 0));
+      ctx.fillStyle = sg;
+      ctx.fillRect(x + 8, y - 1, 24, 24);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x + 19, y + 6, 2, 10);
+      break;
+    }
+    case "forge": {
+      // synthesis crucible with molten core + converging pipes, 30×28
+      shadow();
+      ctx.fillRect(x, y + 24, 30, 4);
+      ctx.fillStyle = hexA(color, 0.4);
+      ctx.fillRect(x - 10, y + 12, 12, 3);
+      ctx.fillRect(x + 28, y + 12, 12, 3);
+      ctx.fillStyle = "#0c1017";
+      ctx.fillRect(x + 4, y + 4, 22, 22);
+      ctx.fillStyle = "#05070c";
+      ctx.fillRect(x + 6, y + 6, 18, 18);
+      const fg = ctx.createRadialGradient(x + 15, y + 15, 2, x + 15, y + 15, 12);
+      fg.addColorStop(0, "#fff");
+      fg.addColorStop(0.4, hexA(color, 0.95));
+      fg.addColorStop(1, hexA(color, 0.1));
+      ctx.fillStyle = fg;
+      ctx.fillRect(x + 5, y + 5, 20, 20);
+      break;
+    }
+    case "pedestal": {
+      // test pedestal under a harsh spotlight, 16×24
+      const spg = ctx.createLinearGradient(x + 8, y - 6, x + 8, y + 18);
+      spg.addColorStop(0, hexA(color, 0.5));
+      spg.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = spg;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y - 6);
+      ctx.lineTo(x + 10, y - 6);
+      ctx.lineTo(x + 16, y + 18);
+      ctx.lineTo(x, y + 18);
+      ctx.closePath();
+      ctx.fill();
+      shadow();
+      ctx.fillRect(x + 2, y + 18, 14, 3);
+      ctx.fillStyle = "#1a1e28";
+      ctx.fillRect(x + 4, y + 10, 8, 9);
+      ctx.fillStyle = "#0d1017";
+      ctx.fillRect(x + 3, y + 8, 10, 2);
+      ctx.fillStyle = hexA(color, 0.9);
+      ctx.fillRect(x + 6, y + 4, 4, 5);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x + 7, y + 5, 2, 2);
+      break;
+    }
+    case "filecabinet": {
+      // archive drawers, 16×22
+      shadow();
+      ctx.fillRect(x, y + 20, 16, 3);
+      ctx.fillStyle = "#12161d";
+      ctx.fillRect(x, y, 16, 20);
+      for (let dy = y + 2; dy < y + 19; dy += 5) {
+        ctx.fillStyle = "#0b0e14";
+        ctx.fillRect(x + 1, dy, 14, 4);
+        ctx.fillStyle = hexA(color, 0.8);
+        ctx.fillRect(x + 6, dy + 1, 4, 1);
+      }
+      break;
+    }
+    case "press": {
+      // printing press with a paper stream, 34×26
+      shadow();
+      ctx.fillRect(x, y + 22, 34, 4);
+      ctx.fillStyle = "#161a22";
+      ctx.fillRect(x + 2, y + 4, 30, 18);
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(x + 4, y + 6, 26, 8);
+      ctx.fillStyle = hexA(color, 0.8);
+      ctx.fillRect(x + 6, y + 9, 22, 2);
+      ctx.fillStyle = "#e8ecf2"; // paper
+      ctx.fillRect(x + 8, y + 16, 18, 10);
+      ctx.fillStyle = "#c0c6d0";
+      for (let ly = y + 18; ly < y + 25; ly += 2) ctx.fillRect(x + 10, ly, 14, 1);
+      ctx.fillStyle = hexA(C.amber, 0.8);
+      ctx.fillRect(x + 28, y + 6, 2, 2);
+      break;
+    }
+    case "ledger": {
+      // big open reference book on a stand, 22×16
+      shadow();
+      ctx.fillRect(x, y + 13, 22, 3);
+      ctx.fillStyle = "#1a140c";
+      ctx.fillRect(x + 2, y + 10, 18, 4);
+      ctx.fillStyle = "#e8ecf2";
+      ctx.fillRect(x + 1, y + 2, 20, 8);
+      ctx.fillStyle = "#b8bec8";
+      ctx.fillRect(x + 10, y + 2, 2, 8);
+      ctx.fillStyle = hexA(color, 0.7);
+      for (let ly = y + 4; ly < y + 9; ly += 2) {
+        ctx.fillRect(x + 3, ly, 6, 1);
+        ctx.fillRect(x + 13, ly, 6, 1);
+      }
       break;
     }
   }
