@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkloadsRouteImport } from './routes/workloads'
+import { Route as StationRouteImport } from './routes/station'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as InsightsRouteImport } from './routes/insights'
@@ -21,6 +22,11 @@ import { Route as WorkloadsSlugRouteImport } from './routes/workloads.$slug'
 const WorkloadsRoute = WorkloadsRouteImport.update({
   id: '/workloads',
   path: '/workloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StationRoute = StationRouteImport.update({
+  id: '/station',
+  path: '/station',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/insights': typeof InsightsRoute
   '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
+  '/station': typeof StationRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/insights': typeof InsightsRoute
   '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
+  '/station': typeof StationRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/insights': typeof InsightsRoute
   '/market': typeof MarketRoute
   '/settings': typeof SettingsRoute
+  '/station': typeof StationRoute
   '/workloads': typeof WorkloadsRouteWithChildren
   '/workloads/$slug': typeof WorkloadsSlugRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/insights'
     | '/market'
     | '/settings'
+    | '/station'
     | '/workloads'
     | '/workloads/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/insights'
     | '/market'
     | '/settings'
+    | '/station'
     | '/workloads'
     | '/workloads/$slug'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/insights'
     | '/market'
     | '/settings'
+    | '/station'
     | '/workloads'
     | '/workloads/$slug'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   InsightsRoute: typeof InsightsRoute
   MarketRoute: typeof MarketRoute
   SettingsRoute: typeof SettingsRoute
+  StationRoute: typeof StationRoute
   WorkloadsRoute: typeof WorkloadsRouteWithChildren
 }
 
@@ -140,6 +153,13 @@ declare module '@tanstack/react-router' {
       path: '/workloads'
       fullPath: '/workloads'
       preLoaderRoute: typeof WorkloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/station': {
+      id: '/station'
+      path: '/station'
+      fullPath: '/station'
+      preLoaderRoute: typeof StationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -213,8 +233,19 @@ const rootRouteChildren: RootRouteChildren = {
   InsightsRoute: InsightsRoute,
   MarketRoute: MarketRoute,
   SettingsRoute: SettingsRoute,
+  StationRoute: StationRoute,
   WorkloadsRoute: WorkloadsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

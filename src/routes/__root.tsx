@@ -93,13 +93,14 @@ function RootComponent() {
   );
 }
 
-const NAV: Array<{ label: string; to: "/" | "/workloads" | "/market" | "/commands" | "/alerts" | "/insights" | "/settings" }> = [
+const NAV: Array<{ label: string; to: "/" | "/workloads" | "/market" | "/commands" | "/alerts" | "/insights" | "/settings" | "/station" }> = [
   { label: "Front", to: "/" },
   { label: "Workloads", to: "/workloads" },
   { label: "Market", to: "/market" },
   { label: "Commands", to: "/commands" },
   { label: "Incidents", to: "/alerts" },
   { label: "Archive", to: "/insights" },
+  { label: "Station", to: "/station" },
   { label: "Setup", to: "/settings" },
 ];
 
