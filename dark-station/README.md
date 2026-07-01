@@ -26,6 +26,25 @@ Danach die in der Konsole gezeigte URL öffnen (Standard:
 Lege ein Bild als `public/station-bg.jpg` ab — es wird automatisch als
 Hintergrund benutzt (sonst läuft ein prozeduraler Milchstraßen-Himmel).
 
+## Live-Backend (optional, Phase 2)
+
+Es gibt jetzt ein WebSocket-Backend in `server/`. Es ist **optional**:
+
+- Läuft **nur das Frontend** → oben rechts steht **`◦ SIM`** (eingebaute
+  Simulation, gratis).
+- Startest du zusätzlich das Backend, verbindet sich das Frontend automatisch
+  und zeigt **`● LIVE`** — die Events kommen dann vom Server.
+
+Backend starten (zweites Terminal, [Python 3.10+](https://www.python.org)):
+
+```bash
+cd dark-station/server
+pip install -r requirements.txt
+python main.py
+```
+
+Details in `server/README.md`.
+
 ## Struktur
 
 ```
@@ -33,8 +52,11 @@ dark-station/
 ├─ index.html          # Einstieg
 ├─ src/
 │  ├─ main.tsx         # mountet die App
-│  ├─ Station.tsx      # die komplette Station (Canvas + Panels + Simulation)
+│  ├─ Station.tsx      # die komplette Station (Canvas + Panels + WS-Client)
 │  └─ index.css        # Reset + Font
+├─ server/             # optionales FastAPI-WebSocket-Backend (Phase 2)
+│  ├─ main.py
+│  └─ requirements.txt
 ├─ public/             # optionales station-bg.jpg
 ├─ package.json
 └─ vite.config.ts
@@ -42,6 +64,8 @@ dark-station/
 
 ## Phasen
 
-- **Phase 1 (hier):** rein optisch, simulierter Stream, gratis.
-- **Phase 2+:** echtes Backend (WebSocket) + echte Agenten — noch nicht Teil
-  dieses Ordners.
+- **Phase 1:** rein optisch, simulierter Stream, gratis. ✅
+- **Phase 2 (jetzt):** WebSocket-Backend streamt den Workflow live — noch
+  simuliert, kein LLM, gratis. ✅
+- **Phase 3+:** `server/main.py` auf echte Agenten (LangGraph + LLM-API)
+  umstellen — braucht API-Schlüssel und verursacht Kosten.

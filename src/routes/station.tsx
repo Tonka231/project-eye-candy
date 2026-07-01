@@ -1223,6 +1223,7 @@ function Station() {
   const [stats, setStats] = useState({ uptime: 0, tokens: 0, cost: 0, jobs: 0, active: 4 });
   const [morale, setMorale] = useState(78);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [live, setLive] = useState(false); // true = events streamed from the WS backend
 
   const togglePause = useCallback(() => {
     setPaused((p) => {
@@ -1295,78 +1296,139 @@ function Station() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  /* ── logical event emitter (updates React state + spawns a bead) ── */
+  /* ── event pipeline: applies a flow event, fed by the WS backend OR the
+     built-in simulation (automatic fallback when no server is running) ── */
   useEffect(() => {
     let evId = 0;
     let missionCursor = 2;
-    const tick = () => {
-      if (!pausedRef.current) {
-        const ev = nextEvent();
-        // bead
-        beadsRef.current.push({
-          pts: edgePath(ev.from, ev.to),
-          t: 0,
-          speed: 0.0011 + Math.random() * 0.0009,
-          color: ev.color,
-          to: ev.to,
-        });
-        activeRef.current[ev.from] = Math.min(1.4, (activeRef.current[ev.from] ?? 0) + 0.6);
-        // log
-        evId += 1;
-        const id = evId;
-        setLog((l) => [{ id, text: ev.text, color: ev.color, type: ev.type }, ...l].slice(0, 40));
-        // speech bubble over the receiving room (auto-expires)
-        if (Math.random() < 0.6) {
-          const room = Math.random() < 0.5 ? ev.to : ev.from;
-          const bub: Bubble = { id, room, text: pickDialog(ev.type) };
-          setBubbles((bs) => [...bs.filter((b) => b.room !== room), bub].slice(-4));
-          window.setTimeout(() => setBubbles((bs) => bs.filter((b) => b.id !== id)), 3400);
+    let simTimer = 0;
+    let retryTimer = 0;
+    let ws: WebSocket | null = null;
+    let disposed = false;
+
+    // apply one workflow event to beads + all the React panels
+    const applyEvent = (ev: FlowEv) => {
+      if (pausedRef.current || !ev || !ROOM[ev.from] || !ROOM[ev.to]) return;
+      beadsRef.current.push({
+        pts: edgePath(ev.from, ev.to),
+        t: 0,
+        speed: 0.0011 + Math.random() * 0.0009,
+        color: ev.color,
+        to: ev.to,
+      });
+      activeRef.current[ev.from] = Math.min(1.4, (activeRef.current[ev.from] ?? 0) + 0.6);
+      evId += 1;
+      const id = evId;
+      setLog((l) => [{ id, text: ev.text, color: ev.color, type: ev.type }, ...l].slice(0, 40));
+      if (Math.random() < 0.6) {
+        const room = Math.random() < 0.5 ? ev.to : ev.from;
+        const bub: Bubble = { id, room, text: pickDialog(ev.type) };
+        setBubbles((bs) => [...bs.filter((b) => b.room !== room), bub].slice(-4));
+        window.setTimeout(() => setBubbles((bs) => bs.filter((b) => b.id !== id)), 3400);
+      }
+      if (ev.type === "CONFLICT") setMorale((m) => Math.max(20, m - 3));
+      else if (ev.type === "REPORT") setMorale((m) => Math.min(99, m + 2));
+      const dtok = 40 + ((Math.random() * 260) | 0);
+      setStats((s) => ({
+        ...s,
+        tokens: s.tokens + dtok,
+        cost: s.cost + dtok * 0.000003,
+        jobs: s.jobs + (ev.type === "REPORT" ? 1 : 0),
+      }));
+      setPool((p) => {
+        const i = (Math.random() * p.length) | 0;
+        return p.map((a, j) =>
+          j === i
+            ? { ...a, status: POOL_STATUS[(Math.random() * POOL_STATUS.length) | 0], active: true }
+            : Math.random() < 0.06
+              ? { ...a, active: false }
+              : a,
+        );
+      });
+      if (ev.type === "REPORT" && missionCursor < 8) {
+        const done = missionCursor;
+        missionCursor += 1;
+        setMissions((m) =>
+          m.map((t) =>
+            t.id === done
+              ? { ...t, state: "done" as const }
+              : t.id === missionCursor
+                ? { ...t, state: "run" as const }
+                : t,
+          ),
+        );
+      }
+    };
+
+    // built-in simulation loop (used until/unless the WS backend connects)
+    const stopSim = () => {
+      if (simTimer) window.clearTimeout(simTimer);
+      simTimer = 0;
+    };
+    const startSim = () => {
+      stopSim();
+      const tick = () => {
+        if (!pausedRef.current) applyEvent(nextEvent());
+        simTimer = window.setTimeout(tick, 700 + Math.random() * 900);
+      };
+      simTimer = window.setTimeout(tick, 400);
+    };
+
+    // try the FastAPI WebSocket backend; fall back to the local sim on failure
+    const connect = () => {
+      const host = window.location.hostname || "127.0.0.1";
+      let sock: WebSocket;
+      try {
+        sock = new WebSocket(`ws://${host}:8000/ws`);
+      } catch {
+        return;
+      }
+      ws = sock;
+      sock.onopen = () => {
+        setLive(true);
+        stopSim(); // server now drives events
+      };
+      sock.onmessage = (e) => {
+        try {
+          const ev = JSON.parse(e.data) as FlowEv;
+          applyEvent(ev);
+        } catch {
+          /* ignore malformed frame */
         }
-        // morale drifts with conflicts vs. sealed reports
-        if (ev.type === "CONFLICT") setMorale((m) => Math.max(20, m - 3));
-        else if (ev.type === "REPORT") setMorale((m) => Math.min(99, m + 2));
-        // counters
-        const dtok = 40 + ((Math.random() * 260) | 0);
-        setStats((s) => ({
-          ...s,
-          tokens: s.tokens + dtok,
-          cost: s.cost + dtok * 0.000003,
-          jobs: s.jobs + (ev.type === "REPORT" ? 1 : 0),
-        }));
-        // nudge a pool agent's status + activity
-        setPool((p) => {
-          const i = (Math.random() * p.length) | 0;
-          return p.map((a, j) =>
-            j === i
-              ? {
-                  ...a,
-                  status: POOL_STATUS[(Math.random() * POOL_STATUS.length) | 0],
-                  active: true,
-                }
-              : Math.random() < 0.06
-                ? { ...a, active: false }
-                : a,
-          );
-        });
-        // advance mission queue occasionally
-        if (ev.type === "REPORT" && missionCursor < 8) {
-          const done = missionCursor;
-          missionCursor += 1;
-          setMissions((m) =>
-            m.map((t) =>
-              t.id === done
-                ? { ...t, state: "done" as const }
-                : t.id === missionCursor
-                  ? { ...t, state: "run" as const }
-                  : t,
-            ),
-          );
+      };
+      sock.onerror = () => {
+        try {
+          sock.close();
+        } catch {
+          /* noop */
+        }
+      };
+      sock.onclose = () => {
+        if (ws === sock) ws = null;
+        setLive(false);
+        if (!disposed) {
+          startSim(); // resume local simulation
+          retryTimer = window.setTimeout(connect, 4000); // keep trying the backend
+        }
+      };
+    };
+
+    startSim(); // works immediately, no server required
+    connect(); // upgrade to live server stream if available
+
+    return () => {
+      disposed = true;
+      stopSim();
+      if (retryTimer) window.clearTimeout(retryTimer);
+      if (ws) {
+        ws.onclose = null;
+        try {
+          ws.close();
+        } catch {
+          /* noop */
         }
       }
-      timer = window.setTimeout(tick, 700 + Math.random() * 900);
     };
-    let timer = window.setTimeout(tick, 400);
-    return () => window.clearTimeout(timer);
   }, []);
 
   /* ── uptime + active-count clock ── */
@@ -1404,9 +1466,9 @@ function Station() {
           <MoralePill morale={morale} />
         </div>
         <div style={sx.topRight}>
-          <span style={{ ...sx.liveDot, background: paused ? C.ash : C.sith }} />
-          <span style={{ color: paused ? C.ash : C.sith, ...sx.liveTxt }}>
-            {paused ? "PAUSED" : "LIVE"}
+          <span style={{ ...sx.liveDot, background: paused ? C.ash : live ? C.sith : C.amber }} />
+          <span style={{ color: paused ? C.ash : live ? C.sith : C.amber, ...sx.liveTxt }}>
+            {paused ? "PAUSED" : live ? "● LIVE" : "◦ SIM"}
           </span>
           <Link to="/" style={sx.exit}>
             ✕ EXIT
@@ -1519,7 +1581,11 @@ function Station() {
         <BtnBar label="AGENTS" />
         <BtnBar label="MISSIONS" />
         <BtnBar label="LOGS" />
-        <span style={sx.buildTag}>PHASE 1 · SIMULATED STREAM · NO LLM · $0.00</span>
+        <span style={sx.buildTag}>
+          {live
+            ? "PHASE 2 · WEBSOCKET · LIVE FROM SERVER"
+            : "PHASE 1 · SIMULATED STREAM · NO LLM · $0.00"}
+        </span>
       </footer>
     </div>
   );
