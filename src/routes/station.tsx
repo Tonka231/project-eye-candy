@@ -15,32 +15,42 @@ export const Route = createFileRoute("/station")({
   component: Station,
 });
 
-/* ───────────────────────────── palette (per spec — SITH-RED) ────────────── */
+/* ───────────────────────── palette (video match — MATRIX-GREEN) ─────────── */
+// `sith` is repurposed as the primary terminal-green accent so all the HUD / UI
+// references stay valid while the whole interface reads green like the clip.
 const C = {
   void: "#04050a",
-  hull: "#0b0d15",
-  sith: "#ff1f3d",
-  ember: "#ff6a4d",
-  amber: "#ffaa33",
-  ash: "#565c70",
-  bone: "#c6cad8",
-  steel: "#5b8dd6",
+  hull: "#0a0f0c",
+  sith: "#39ff9c", // primary terminal green (HUD, accents, commander)
+  green: "#39ff9c",
+  cyan: "#3fe0d0", // unified room frames
+  yellow: "#ffd23f", // corner brackets
+  scan: "#ff3347", // red scan beams
+  ember: "#ff7a4d",
+  amber: "#ffb347",
+  ash: "#566058",
+  bone: "#cde0d4",
+  steel: "#4aa3ff",
   toxic: "#57e08a",
-  deep: "#b11026",
+  deep: "#ff2f52",
 } as const;
+
+// Every room shares the same cyan frame in the video; the interior/glow is tinted.
+const EDGE = C.cyan;
 
 /* ───────────────────────────── logical canvas ──────────────────────────── */
 const W = 640;
 const H = 400;
 
 type Theme = keyof typeof ROOM_THEME;
+// Each room keeps the shared cyan frame (EDGE) but glows in its own tint.
 const ROOM_THEME = {
-  sith: { edge: C.sith, floor: "#170a10", glow: C.sith },
-  ember: { edge: C.ember, floor: "#1a0f0a", glow: C.ember },
-  amber: { edge: C.amber, floor: "#1a140a", glow: C.amber },
-  steel: { edge: C.steel, floor: "#0a1220", glow: C.steel },
-  toxic: { edge: C.toxic, floor: "#0a1a12", glow: C.toxic },
-  deep: { edge: C.deep, floor: "#1a0a0d", glow: C.deep },
+  green: { tint: C.green, floor: "#07130c" },
+  ember: { tint: C.ember, floor: "#170d08" },
+  amber: { tint: C.amber, floor: "#161006" },
+  steel: { tint: C.steel, floor: "#08111f" },
+  toxic: { tint: C.toxic, floor: "#08160f" },
+  deep: { tint: C.deep, floor: "#170709" },
 } as const;
 
 interface Room {
@@ -64,7 +74,7 @@ const ROOMS: Room[] = [
     y: 150,
     w: 150,
     h: 112,
-    theme: "sith",
+    theme: "green",
     boss: true,
     crew: 2,
   },
@@ -73,7 +83,7 @@ const ROOMS: Room[] = [
   { id: "resG", label: "RECHERCHE γ", x: 22, y: 282, w: 122, h: 94, theme: "steel", crew: 3 },
   { id: "fact", label: "FAKTENCHECK", x: 176, y: 24, w: 120, h: 86, theme: "amber", crew: 2 },
   { id: "confl", label: "WIDERSPRUCH", x: 364, y: 24, w: 120, h: 86, theme: "deep", crew: 2 },
-  { id: "synth", label: "SYNTHESE", x: 502, y: 96, w: 116, h: 92, theme: "sith", crew: 2 },
+  { id: "synth", label: "SYNTHESE", x: 502, y: 96, w: 116, h: 92, theme: "green", crew: 2 },
   { id: "crit", label: "KRITIKER", x: 502, y: 224, w: 116, h: 92, theme: "toxic", crew: 2 },
   { id: "cite", label: "ZITATION", x: 364, y: 302, w: 120, h: 74, theme: "amber", crew: 2 },
   { id: "rep", label: "REPORT", x: 182, y: 302, w: 120, h: 74, theme: "ember", crew: 3 },
@@ -184,6 +194,28 @@ function nextEvent(): FlowEv {
   if (roll < 0.96)
     return { from: "cite", to: "rep", type: "CITE", text: "citations verified", color: C.amber };
   return { from: "rep", to: "cmd", type: "REPORT", text: "report section sealed", color: C.ember };
+}
+
+/* ───────────────────────────── speech bubbles ──────────────────────────── */
+interface Bubble {
+  id: number;
+  room: string;
+  text: string;
+}
+// Short agent chatter keyed by the event that spawned it (like the clip's boxes).
+const DIALOG: Record<EvType, string[]> = {
+  DISPATCH: ["Deploy to sector.", "Orders received — moving.", "Tasking research wing."],
+  RESULT: ["Findings compiled, sir.", "Data packet returned.", "Sources catalogued."],
+  CHECK: ["Cross-checking claims…", "Facts hold — verified.", "Integrity scan running."],
+  CONFLICT: ["Contradiction detected!", "Sources disagree — flagging.", "Escalating to command."],
+  SYNTH: ["Merging the threads.", "Drafting synthesis.", "Argument taking shape."],
+  CRITIQUE: ["Poking holes in it.", "Weak point, line 4.", "Adversarial pass on."],
+  CITE: ["Anchoring citations.", "References locked.", "Provenance confirmed."],
+  REPORT: ["Section sealed.", "Report compiling.", "Ready for command."],
+};
+function pickDialog(t: EvType) {
+  const a = DIALOG[t];
+  return a[(Math.random() * a.length) | 0];
 }
 
 /* ───────────────────────────── left pool (21 atmospheric agents) ────────── */
@@ -305,7 +337,7 @@ function initCharacters(): Character[] {
         face: Math.random() < 0.5 ? -1 : 1,
         step: Math.random() * 6,
         idle: rand(0, 1200),
-        color: boss ? C.sith : th.edge,
+        color: boss ? C.green : th.tint,
         boss,
         wob: Math.random() * 6.28,
       });
@@ -352,16 +384,20 @@ function drawStatic(ctx: CanvasRenderingContext2D, stars: { x: number; y: number
   // deep space
   ctx.fillStyle = C.void;
   ctx.fillRect(0, 0, W, H);
-  // faint nebula wash
-  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 320);
-  g.addColorStop(0, "rgba(255,31,61,0.06)");
+  // faint green nebula wash
+  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 340);
+  g.addColorStop(0, "rgba(57,255,156,0.05)");
   g.addColorStop(1, "rgba(4,5,10,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // stars
+  // stars + occasional bright debris streaks
   for (const s of stars) {
-    ctx.fillStyle = `rgba(198,202,216,${s.b})`;
+    ctx.fillStyle = `rgba(220,230,224,${s.b})`;
     ctx.fillRect(s.x, s.y, 1, 1);
+    if (s.b > 0.55) {
+      ctx.fillStyle = `rgba(220,230,224,${s.b * 0.4})`;
+      ctx.fillRect(s.x - 1, s.y, 3, 1);
+    }
   }
   // corridors as lit tubes with side rails
   ctx.lineJoin = "round";
@@ -400,57 +436,126 @@ const FURN: Record<string, Prop[]> = {
 };
 type Prop = "rack" | "console" | "reactor" | "crate" | "pod" | "screen" | "plant";
 
+// Small deterministic PRNG so the dense interior is stable frame-to-frame.
+function mulberry(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// L-shaped yellow bracket at a room corner (x,y) with arms extending in the
+// sx/sy directions (+1 right/down, -1 left/up) — the video's frame markers.
+function cornerBracket(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  sx: number,
+  sy: number,
+) {
+  const L = 8;
+  const T = 2;
+  ctx.fillStyle = C.yellow;
+  const hx = sx > 0 ? x : x - L;
+  const hy = sy > 0 ? y : y - T;
+  ctx.fillRect(hx, hy, L, T); // horizontal arm
+  const vx = sx > 0 ? x : x - T;
+  const vy = sy > 0 ? y : y - L;
+  ctx.fillRect(vx, vy, T, L); // vertical arm
+}
+
 function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   const th = ROOM_THEME[r.theme];
   // floor base
   ctx.fillStyle = th.floor;
   ctx.fillRect(r.x, r.y, r.w, r.h);
-  // checker floor tiles (two shades) + panel seams
-  for (let ty = 0, gy = r.y; gy < r.y + r.h; gy += 8, ty++) {
-    for (let tx = 0, gx = r.x; gx < r.x + r.w; gx += 8, tx++) {
-      if ((tx + ty) & 1) {
-        ctx.fillStyle = "rgba(255,255,255,0.025)";
-        ctx.fillRect(gx, gy, 8, 8);
-      }
-    }
-  }
-  ctx.strokeStyle = "rgba(0,0,0,0.35)";
-  ctx.lineWidth = 1;
-  for (let gx = r.x + 16; gx < r.x + r.w; gx += 16) {
-    ctx.beginPath();
-    ctx.moveTo(gx + 0.5, r.y + 3);
-    ctx.lineTo(gx + 0.5, r.y + r.h - 3);
-    ctx.stroke();
-  }
+
+  // dense "circuit-board" interior packed across the whole floor
+  drawRoomDetail(ctx, r, th.tint);
+
   // inner wall band with door gaps top & bottom
-  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, 4); // top wall
   ctx.fillRect(r.x + 3, r.y + r.h - 7, r.w - 6, 4); // bottom wall
   ctx.fillStyle = th.floor; // carve doors
   ctx.fillRect(cx(r) - 6, r.y + 3, 12, 4);
   ctx.fillRect(cx(r) - 6, r.y + r.h - 7, 12, 4);
 
-  // furniture along the top wall
+  // furniture along the top wall (tinted per-room)
   const props = FURN[r.id] ?? ["console"];
   const span = r.w - 20;
   const step = span / props.length;
   props.forEach((p, i) => {
     const px = Math.round(r.x + 12 + step * i + (step - 12) / 2);
-    drawProp(ctx, p, px, r.y + 9, th.edge);
+    drawProp(ctx, p, px, r.y + 9, th.tint);
   });
 
-  // neon wall border + corner posts
-  ctx.strokeStyle = th.edge;
+  // shared cyan wall frame
+  ctx.strokeStyle = EDGE;
   ctx.lineWidth = 1;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
-  ctx.fillStyle = th.edge;
-  for (const [ox, oy] of [
-    [r.x, r.y],
-    [r.x + r.w - 3, r.y],
-    [r.x, r.y + r.h - 3],
-    [r.x + r.w - 3, r.y + r.h - 3],
-  ])
-    ctx.fillRect(ox, oy, 3, 3);
+  // yellow L-brackets at the four corners
+  cornerBracket(ctx, r.x - 1, r.y - 1, 1, 1);
+  cornerBracket(ctx, r.x + r.w, r.y - 1, -1, 1);
+  cornerBracket(ctx, r.x - 1, r.y + r.h, 1, -1);
+  cornerBracket(ctx, r.x + r.w, r.y + r.h, -1, -1);
+}
+
+// Fills the room floor with a stable grid of tiny machines, pipes and LEDs so
+// each room reads as a densely-packed module from above (matches the clip).
+function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
+  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
+  const top = r.y + 20; // below the top furniture band
+  const bot = r.y + r.h - 9;
+  const left = r.x + 5;
+  const right = r.x + r.w - 5;
+
+  // faint panel grid
+  ctx.strokeStyle = hexA(tint, 0.06);
+  ctx.lineWidth = 1;
+  for (let gx = left; gx < right; gx += 10) {
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.5, top);
+    ctx.lineTo(gx + 0.5, bot);
+    ctx.stroke();
+  }
+  for (let gy = top; gy < bot; gy += 10) {
+    ctx.beginPath();
+    ctx.moveTo(left, gy + 0.5);
+    ctx.lineTo(right, gy + 0.5);
+    ctx.stroke();
+  }
+
+  // scatter of small machine blocks + pipes + LEDs on a jittered grid
+  for (let gy = top; gy < bot - 4; gy += 7) {
+    for (let gx = left; gx < right - 4; gx += 8) {
+      const roll = rng();
+      const px = gx + ((rng() * 2) | 0);
+      const py = gy + ((rng() * 2) | 0);
+      if (roll < 0.34) {
+        // dark machine block with a tinted lit edge
+        const w = 3 + ((rng() * 3) | 0);
+        const h = 3 + ((rng() * 2) | 0);
+        ctx.fillStyle = "#05080b";
+        ctx.fillRect(px, py, w, h);
+        ctx.fillStyle = hexA(tint, 0.5);
+        ctx.fillRect(px, py, w, 1);
+      } else if (roll < 0.46) {
+        // short pipe run
+        ctx.fillStyle = hexA(tint, 0.28);
+        if (rng() < 0.5) ctx.fillRect(px, py + 1, 6, 1);
+        else ctx.fillRect(px + 1, py, 1, 6);
+      } else if (roll < 0.56) {
+        // bright LED
+        ctx.fillStyle = hexA(rng() < 0.7 ? tint : C.amber, 0.85);
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
 }
 
 // ── procedural pixel furniture (copyright-clean, drawn by hand) ──
@@ -551,13 +656,27 @@ function drawDynamic(
     const heat = active[r.id] ?? 0;
     const pulse = 0.35 + 0.25 * Math.sin(now / 320 + r.x);
     const glow = Math.min(1, pulse + heat);
-    ctx.strokeStyle = hexA(th.glow, 0.16 + 0.5 * glow);
+    // cyan frame glow
+    ctx.strokeStyle = hexA(EDGE, 0.14 + 0.4 * glow);
     ctx.lineWidth = 1;
     ctx.strokeRect(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1);
     if (heat > 0.05) {
-      ctx.strokeStyle = hexA(th.glow, 0.25 * heat);
+      // tinted outer halo + the signature big radial room glow
+      ctx.strokeStyle = hexA(th.tint, 0.3 * heat);
       ctx.strokeRect(r.x - 2.5, r.y - 2.5, r.w + 5, r.h + 5);
+      const rg = ctx.createRadialGradient(cx(r), cy(r), 2, cx(r), cy(r), r.w * 0.62);
+      rg.addColorStop(0, hexA(th.tint, 0.55 * Math.min(1, heat)));
+      rg.addColorStop(0.6, hexA(th.tint, 0.12 * Math.min(1, heat)));
+      rg.addColorStop(1, hexA(th.tint, 0));
+      ctx.fillStyle = rg;
+      ctx.fillRect(r.x - 8, r.y - 8, r.w + 16, r.h + 16);
     }
+    // red horizontal scan beam (gently bobbing, brighter with activity)
+    const beamY = Math.round(r.y + r.h * 0.3 + Math.sin(now / 700 + r.x) * 3);
+    ctx.fillStyle = hexA(C.scan, 0.12);
+    ctx.fillRect(r.x + 2, beamY - 1, r.w - 4, 3);
+    ctx.fillStyle = hexA(C.scan, 0.45 + 0.35 * heat + 0.1 * Math.sin(now / 130));
+    ctx.fillRect(r.x + 2, beamY, r.w - 4, 1);
     // blinking machine LEDs along the top wall
     const props = FURN[r.id] ?? [];
     const step = (r.w - 20) / Math.max(1, props.length);
@@ -569,7 +688,7 @@ function drawDynamic(
       }
     }
   }
-  for (const ch of chars) drawCharGlow(ctx, ch, now);
+  for (const ch of chars) drawCharGlow(ctx, ch, now, active[ch.room] ?? 0);
 
   // ── solid sprites (normal blend) ──
   ctx.globalCompositeOperation = "source-over";
@@ -596,15 +715,25 @@ function drawDynamic(
   drawMinimap(ctx, active, now);
 }
 
-function drawCharGlow(ctx: CanvasRenderingContext2D, ch: Character, now: number) {
+function drawCharGlow(ctx: CanvasRenderingContext2D, ch: Character, now: number, heat: number) {
   const b = ch.boss;
   const pulse = 0.55 + 0.45 * Math.sin(now / (b ? 300 : 520) + ch.wob);
-  const rx = b ? 11 : 6;
   const cy0 = ch.y - (b ? 8 : 5);
+  // base aura
+  const rx = b ? 11 : 6;
   ctx.fillStyle = hexA(ch.color, (b ? 0.15 : 0.08) * (0.6 + 0.4 * pulse));
   ctx.fillRect(ch.x - rx, cy0 - rx, rx * 2, rx * 2);
-  ctx.fillStyle = hexA(ch.color, (b ? 0.1 : 0.05) * (0.6 + 0.4 * pulse));
-  ctx.fillRect(ch.x - rx * 1.6, cy0 - rx * 1.4, rx * 3.2, rx * 2.8);
+  // large radial glow when the crew's room is active — the signature look
+  const act = Math.min(1, heat);
+  if (act > 0.05 || b) {
+    const R = (b ? 26 : 18) * (0.7 + 0.5 * act);
+    const g = ctx.createRadialGradient(ch.x, cy0, 1, ch.x, cy0, R);
+    g.addColorStop(0, hexA(ch.color, (0.18 + 0.4 * act) * (0.7 + 0.3 * pulse)));
+    g.addColorStop(0.5, hexA(ch.color, 0.1 * (0.5 + act)));
+    g.addColorStop(1, hexA(ch.color, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(ch.x - R, cy0 - R, R * 2, R * 2);
+  }
 }
 
 // A chunky humanoid with a 2-frame walk cycle. ch.(x,y) is the feet centre.
@@ -623,8 +752,10 @@ function drawCharBody(ctx: CanvasRenderingContext2D, ch: Character, now: number)
   const legH = b ? 4 : 3;
   const lw = b ? 3 : 2;
 
-  const dark = shade(ch.color, 0.42);
-  const mid = shade(ch.color, 0.72);
+  // crew wear white/grey armour (like the astronauts in the clip); only the
+  // core + visor glow in the room tint. The boss keeps a tinted suit.
+  const dark = b ? shade(ch.color, 0.5) : "#7f8a95";
+  const mid = b ? shade(ch.color, 0.82) : "#dde6ee";
   const legTop = y - legH;
   const torTop = legTop - torH + breathe;
   const headTop = torTop - headH;
@@ -683,7 +814,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, active: Record<string, numbe
   for (const r of ROOMS) {
     const th = ROOM_THEME[r.theme];
     const heat = active[r.id] ?? 0;
-    ctx.fillStyle = hexA(th.edge, 0.4 + 0.6 * heat);
+    ctx.fillStyle = hexA(th.tint, 0.4 + 0.6 * heat);
     ctx.fillRect(mx + r.x * sx, my + r.y * sy, Math.max(2, r.w * sx), Math.max(2, r.h * sy));
   }
   // sweep line
@@ -724,6 +855,8 @@ function Station() {
     { id: 8, text: "Compile final report", state: "queue" as const },
   ]);
   const [stats, setStats] = useState({ uptime: 0, tokens: 0, cost: 0, jobs: 0, active: 4 });
+  const [morale, setMorale] = useState(78);
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
 
   const togglePause = useCallback(() => {
     setPaused((p) => {
@@ -799,12 +932,23 @@ function Station() {
           t: 0,
           speed: 0.0011 + Math.random() * 0.0009,
           color: ev.color,
+          to: ev.to,
         });
         activeRef.current[ev.from] = Math.min(1.4, (activeRef.current[ev.from] ?? 0) + 0.6);
         // log
         evId += 1;
         const id = evId;
         setLog((l) => [{ id, text: ev.text, color: ev.color, type: ev.type }, ...l].slice(0, 40));
+        // speech bubble over the receiving room (auto-expires)
+        if (Math.random() < 0.6) {
+          const room = Math.random() < 0.5 ? ev.to : ev.from;
+          const bub: Bubble = { id, room, text: pickDialog(ev.type) };
+          setBubbles((bs) => [...bs.filter((b) => b.room !== room), bub].slice(-4));
+          window.setTimeout(() => setBubbles((bs) => bs.filter((b) => b.id !== id)), 3400);
+        }
+        // morale drifts with conflicts vs. sealed reports
+        if (ev.type === "CONFLICT") setMorale((m) => Math.max(20, m - 3));
+        else if (ev.type === "REPORT") setMorale((m) => Math.min(99, m + 2));
         // counters
         const dtok = 40 + ((Math.random() * 260) | 0);
         setStats((s) => ({
@@ -869,20 +1013,19 @@ function Station() {
     <div style={sx.root}>
       <style>{KEYFRAMES}</style>
 
-      {/* ── top status bar ── */}
+      {/* ── top status bar (segmented green pill HUD, video-style) ── */}
       <header style={sx.topbar}>
         <div style={sx.logoWrap}>
           <span style={sx.logoMark}>◈</span>
           <span style={sx.logo}>ULTRON-08</span>
-          <span style={sx.logoSub}>DARK STATION</span>
         </div>
         <div style={sx.metrics}>
-          <Metric label="UPTIME" value={upt} />
-          <Metric label="TOKENS" value={stats.tokens.toLocaleString("en-US")} accent={C.ember} />
-          <Metric label="COST" value={"$" + stats.cost.toFixed(4)} accent={C.amber} />
-          <Metric label="JOBS" value={String(stats.jobs)} />
-          <Metric label="AGENTS" value={`${stats.active}/${pool.length}`} accent={C.sith} />
-          <Metric label="FEEDS" value={String(beadsRef.current.length).padStart(2, "0")} />
+          <Pill label="OPS" value={upt} />
+          <Pill label="LINKED" value={`${stats.active}/${pool.length}`} />
+          <Pill label="TOKENS" value={stats.tokens.toLocaleString("en-US")} />
+          <Pill label="COST" value={"$" + stats.cost.toFixed(4)} />
+          <ModePill active={!paused} />
+          <MoralePill morale={morale} />
         </div>
         <div style={sx.topRight}>
           <span style={{ ...sx.liveDot, background: paused ? C.ash : C.sith }} />
@@ -938,13 +1081,29 @@ function Station() {
                   ...sx.roomLabel,
                   left: `${(cx(r) / W) * 100}%`,
                   top: `${(r.y / H) * 100}%`,
-                  color: ROOM_THEME[r.theme].edge,
+                  color: ROOM_THEME[r.theme].tint,
                   fontWeight: r.boss ? 700 : 500,
                 }}
               >
                 {r.label}
               </span>
             ))}
+            {/* speech bubbles over the rooms (crisp HTML, auto-fade) */}
+            {bubbles.map((b) => {
+              const r = ROOM[b.room];
+              return (
+                <span
+                  key={b.id}
+                  style={{
+                    ...sx.bubble,
+                    left: `${(cx(r) / W) * 100}%`,
+                    top: `${((r.y + 14) / H) * 100}%`,
+                  }}
+                >
+                  {b.text}
+                </span>
+              );
+            })}
           </div>
         </main>
 
@@ -991,11 +1150,28 @@ function Station() {
 }
 
 /* ───────────────────────────── small pieces ────────────────────────────── */
-function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Pill({ label, value }: { label: string; value: string }) {
   return (
-    <div style={sx.metric}>
-      <span style={sx.metricLabel}>{label}</span>
-      <span style={{ ...sx.metricValue, color: accent ?? C.bone }}>{value}</span>
+    <div style={sx.pill}>
+      <span style={sx.pillLabel}>{label}</span>
+      <span style={sx.pillValue}>{value}</span>
+    </div>
+  );
+}
+function ModePill({ active }: { active: boolean }) {
+  return (
+    <div style={{ ...sx.pill, ...sx.pillMode, opacity: active ? 1 : 0.5 }}>
+      <span style={{ ...sx.pillLabel, color: C.void }}>MODE</span>
+      <span style={{ ...sx.pillValue, color: C.void, fontWeight: 700 }}>AUTOPILOT</span>
+    </div>
+  );
+}
+function MoralePill({ morale }: { morale: number }) {
+  const face = morale > 70 ? "◕‿◕" : morale > 45 ? "•_•" : "×╭╮×";
+  return (
+    <div style={sx.pill}>
+      <span style={{ ...sx.pillValue, fontSize: 14, letterSpacing: 0 }}>{face}</span>
+      <span style={sx.pillLabel}>MORALE {morale}%</span>
     </div>
   );
 }
@@ -1064,11 +1240,31 @@ const sx: Record<string, React.CSSProperties> = {
     letterSpacing: 3,
     textShadow: `0 0 10px ${hexA(C.sith, 0.6)}`,
   },
-  logoSub: { color: C.ash, fontSize: 9, letterSpacing: 3 },
-  metrics: { display: "flex", gap: 18, marginLeft: 8, flexWrap: "wrap" },
-  metric: { display: "flex", flexDirection: "column", lineHeight: 1.1 },
-  metricLabel: { fontSize: 8, letterSpacing: 1.5, color: C.ash },
-  metricValue: { fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums" },
+  metrics: { display: "flex", gap: 8, marginLeft: 8, flexWrap: "wrap", alignItems: "center" },
+  pill: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    lineHeight: 1.15,
+    padding: "3px 10px",
+    border: `1px solid ${hexA(C.sith, 0.5)}`,
+    borderRadius: 5,
+    background: hexA(C.sith, 0.05),
+    boxShadow: `0 0 8px ${hexA(C.sith, 0.15)}, inset 0 0 6px ${hexA(C.sith, 0.06)}`,
+  },
+  pillMode: {
+    background: C.sith,
+    border: `1px solid ${C.sith}`,
+    boxShadow: `0 0 12px ${hexA(C.sith, 0.7)}`,
+  },
+  pillLabel: { fontSize: 7.5, letterSpacing: 1.2, color: hexA(C.sith, 0.75) },
+  pillValue: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.sith,
+    fontVariantNumeric: "tabular-nums",
+    textShadow: `0 0 6px ${hexA(C.sith, 0.5)}`,
+  },
   topRight: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 },
   liveDot: {
     width: 7,
@@ -1167,6 +1363,26 @@ const sx: Record<string, React.CSSProperties> = {
     textShadow: "0 0 4px rgba(0,0,0,0.9)",
     pointerEvents: "none",
   },
+  bubble: {
+    position: "absolute",
+    transform: "translate(-50%, -100%)",
+    maxWidth: 130,
+    fontSize: 8,
+    lineHeight: 1.25,
+    letterSpacing: 0.2,
+    fontFamily: mono,
+    color: "#eaf2ec",
+    background: "rgba(6,10,8,0.9)",
+    border: `1px solid ${hexA(C.bone, 0.5)}`,
+    borderRadius: 3,
+    padding: "2px 5px",
+    whiteSpace: "normal",
+    textAlign: "center",
+    pointerEvents: "none",
+    boxShadow: `0 0 8px rgba(0,0,0,0.7)`,
+    animation: "bubbleIn 0.25s ease",
+    zIndex: 3,
+  },
 
   right: {
     width: 250,
@@ -1223,5 +1439,6 @@ const sx: Record<string, React.CSSProperties> = {
 const KEYFRAMES = `
 @keyframes sithPulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
 @keyframes logIn { from{opacity:0; transform:translateX(6px)} to{opacity:1; transform:none} }
+@keyframes bubbleIn { from{opacity:0; transform:translate(-50%,-90%) scale(0.9)} to{opacity:1; transform:translate(-50%,-100%) scale(1)} }
 .dark-station-scroll::-webkit-scrollbar{width:6px;height:6px}
 `;
