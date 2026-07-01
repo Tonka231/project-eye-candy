@@ -31,6 +31,7 @@ const C = {
   ash: "#566058",
   bone: "#cde0d4",
   steel: "#4aa3ff",
+  violet: "#a86bff",
   toxic: "#57e08a",
   deep: "#ff2f52",
 } as const;
@@ -49,6 +50,7 @@ const ROOM_THEME = {
   ember: { tint: C.ember, floor: "#170d08" },
   amber: { tint: C.amber, floor: "#161006" },
   steel: { tint: C.steel, floor: "#08111f" },
+  violet: { tint: C.violet, floor: "#120a1f" },
   toxic: { tint: C.toxic, floor: "#08160f" },
   deep: { tint: C.deep, floor: "#170709" },
 } as const;
@@ -79,7 +81,7 @@ const ROOMS: Room[] = [
     crew: 2,
   },
   { id: "resA", label: "RECHERCHE α", x: 22, y: 26, w: 122, h: 94, theme: "steel", crew: 3 },
-  { id: "resB", label: "RECHERCHE β", x: 22, y: 154, w: 122, h: 94, theme: "steel", crew: 3 },
+  { id: "resB", label: "RECHERCHE β", x: 22, y: 154, w: 122, h: 94, theme: "violet", crew: 3 },
   { id: "resG", label: "RECHERCHE γ", x: 22, y: 282, w: 122, h: 94, theme: "steel", crew: 3 },
   { id: "fact", label: "FAKTENCHECK", x: 176, y: 24, w: 120, h: 86, theme: "amber", crew: 2 },
   { id: "confl", label: "WIDERSPRUCH", x: 364, y: 24, w: 120, h: 86, theme: "deep", crew: 2 },
@@ -380,25 +382,70 @@ function polyline(ctx: CanvasRenderingContext2D, pts: [number, number][]) {
   for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]);
 }
 
-function drawStatic(ctx: CanvasRenderingContext2D, stars: { x: number; y: number; b: number }[]) {
-  // deep space
-  ctx.fillStyle = C.void;
+// Procedural Milky-Way sky: a diagonal haze band, dust patches and layered
+// stars — used until a real starfield photo is dropped in at public/station-bg.jpg.
+function drawMilkyWay(
+  ctx: CanvasRenderingContext2D,
+  stars: { x: number; y: number; b: number; s: number }[],
+) {
+  ctx.fillStyle = "#04050a";
   ctx.fillRect(0, 0, W, H);
-  // faint green nebula wash
-  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 340);
-  g.addColorStop(0, "rgba(57,255,156,0.05)");
+  // diagonal galactic haze band
+  ctx.save();
+  ctx.translate(W * 0.5, H * 0.5);
+  ctx.rotate(-0.5);
+  const band = ctx.createLinearGradient(0, -120, 0, 120);
+  band.addColorStop(0, "rgba(120,140,170,0)");
+  band.addColorStop(0.5, "rgba(150,165,195,0.16)");
+  band.addColorStop(1, "rgba(120,140,170,0)");
+  ctx.fillStyle = band;
+  ctx.fillRect(-W, -70, W * 2, 140);
+  // brighter core of the band
+  const core = ctx.createRadialGradient(-40, 0, 8, -40, 0, 150);
+  core.addColorStop(0, "rgba(200,205,225,0.14)");
+  core.addColorStop(1, "rgba(200,205,225,0)");
+  ctx.fillStyle = core;
+  ctx.fillRect(-W, -100, W * 2, 200);
+  // dark dust lanes cutting across the band
+  ctx.fillStyle = "rgba(4,5,10,0.5)";
+  ctx.fillRect(-W, -6, W * 2, 5);
+  ctx.fillRect(-W, 14, W * 2, 3);
+  ctx.restore();
+  // layered stars
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(228,234,240,${s.b})`;
+    ctx.fillRect(s.x, s.y, 1, 1);
+    if (s.s > 0) {
+      // brighter star with a soft cross glow
+      ctx.fillStyle = `rgba(228,234,240,${s.b * 0.35})`;
+      ctx.fillRect(s.x - 1, s.y, 3, 1);
+      ctx.fillRect(s.x, s.y - 1, 1, 3);
+    }
+  }
+}
+
+function drawStatic(
+  ctx: CanvasRenderingContext2D,
+  stars: { x: number; y: number; b: number; s: number }[],
+  bg?: HTMLImageElement,
+) {
+  if (bg && bg.width) {
+    // real starfield photo, cover-fitted and slightly darkened so the UI reads
+    const scale = Math.max(W / bg.width, H / bg.height);
+    const dw = bg.width * scale;
+    const dh = bg.height * scale;
+    ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.fillStyle = "rgba(4,5,10,0.32)";
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    drawMilkyWay(ctx, stars);
+  }
+  // faint green nebula wash tying it to the terminal palette
+  const g = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 360);
+  g.addColorStop(0, "rgba(57,255,156,0.04)");
   g.addColorStop(1, "rgba(4,5,10,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  // stars + occasional bright debris streaks
-  for (const s of stars) {
-    ctx.fillStyle = `rgba(220,230,224,${s.b})`;
-    ctx.fillRect(s.x, s.y, 1, 1);
-    if (s.b > 0.55) {
-      ctx.fillStyle = `rgba(220,230,224,${s.b * 0.4})`;
-      ctx.fillRect(s.x - 1, s.y, 3, 1);
-    }
-  }
   // corridors as lit tubes with side rails
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -421,20 +468,33 @@ function drawStatic(ctx: CanvasRenderingContext2D, stars: { x: number; y: number
   for (const r of ROOMS) drawRoom(ctx, r);
 }
 
-// Which furniture stands along the top wall of each room (left → right).
+// The palette of real objects each room is furnished with (placed across the
+// whole floor, not just a wall) so every room reads as a lived-in module.
 const FURN: Record<string, Prop[]> = {
-  cmd: ["console", "reactor", "console", "screen"],
-  resA: ["rack", "rack", "console", "rack"],
-  resB: ["rack", "console", "rack", "rack"],
-  resG: ["console", "rack", "rack", "rack"],
-  fact: ["screen", "console", "screen"],
-  confl: ["screen", "crate", "screen", "crate"],
-  synth: ["reactor", "console", "screen"],
-  crit: ["plant", "console", "crate", "plant"],
-  cite: ["console", "screen", "console"],
-  rep: ["console", "pod", "crate"],
+  cmd: ["console", "reactor", "console", "screen", "desk", "console"],
+  resA: ["desk", "rack", "desk", "rack", "console", "chair"],
+  resB: ["rack", "desk", "console", "rack", "desk", "chair"],
+  resG: ["desk", "console", "rack", "desk", "rack", "chair"],
+  fact: ["screen", "desk", "console", "table", "screen"],
+  confl: ["screen", "crate", "console", "barrel", "screen"],
+  synth: ["reactor", "console", "desk", "tank", "screen"],
+  crit: ["plant", "desk", "console", "table", "plant"],
+  cite: ["desk", "console", "screen", "table", "console"],
+  rep: ["console", "pod", "crate", "desk", "barrel"],
 };
-type Prop = "rack" | "console" | "reactor" | "crate" | "pod" | "screen" | "plant";
+type Prop =
+  | "rack"
+  | "console"
+  | "reactor"
+  | "crate"
+  | "pod"
+  | "screen"
+  | "plant"
+  | "desk"
+  | "chair"
+  | "table"
+  | "tank"
+  | "barrel";
 
 // Small deterministic PRNG so the dense interior is stable frame-to-frame.
 function mulberry(seed: number) {
@@ -485,14 +545,8 @@ function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   ctx.fillRect(cx(r) - 6, r.y + 3, 12, 4);
   ctx.fillRect(cx(r) - 6, r.y + r.h - 7, 12, 4);
 
-  // furniture along the top wall (tinted per-room)
-  const props = FURN[r.id] ?? ["console"];
-  const span = r.w - 20;
-  const step = span / props.length;
-  props.forEach((p, i) => {
-    const px = Math.round(r.x + 12 + step * i + (step - 12) / 2);
-    drawProp(ctx, p, px, r.y + 9, th.tint);
-  });
+  // real furniture placed across the whole floor
+  placeProps(ctx, r, th.tint);
 
   // shared cyan wall frame
   ctx.strokeStyle = EDGE;
@@ -505,57 +559,60 @@ function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   cornerBracket(ctx, r.x + r.w, r.y + r.h, -1, -1);
 }
 
-// Fills the room floor with a stable grid of tiny machines, pipes and LEDs so
-// each room reads as a densely-packed module from above (matches the clip).
+// A faint floor grid + a couple of wall pipe runs — a subtle backdrop that the
+// real furniture (placeProps) sits on top of.
 function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
-  const top = r.y + 20; // below the top furniture band
+  const top = r.y + 9;
   const bot = r.y + r.h - 9;
   const left = r.x + 5;
   const right = r.x + r.w - 5;
-
-  // faint panel grid
-  ctx.strokeStyle = hexA(tint, 0.06);
+  ctx.strokeStyle = hexA(tint, 0.05);
   ctx.lineWidth = 1;
-  for (let gx = left; gx < right; gx += 10) {
+  for (let gx = left; gx < right; gx += 12) {
     ctx.beginPath();
     ctx.moveTo(gx + 0.5, top);
     ctx.lineTo(gx + 0.5, bot);
     ctx.stroke();
   }
-  for (let gy = top; gy < bot; gy += 10) {
+  for (let gy = top; gy < bot; gy += 12) {
     ctx.beginPath();
     ctx.moveTo(left, gy + 0.5);
     ctx.lineTo(right, gy + 0.5);
     ctx.stroke();
   }
+  // a couple of pipe runs along the side walls
+  ctx.fillStyle = hexA(tint, 0.18);
+  ctx.fillRect(r.x + 3, top, 1, bot - top);
+  ctx.fillRect(r.x + r.w - 4, top, 1, bot - top);
+}
 
-  // scatter of small machine blocks + pipes + LEDs on a jittered grid
-  for (let gy = top; gy < bot - 4; gy += 7) {
-    for (let gx = left; gx < right - 4; gx += 8) {
-      const roll = rng();
-      const px = gx + ((rng() * 2) | 0);
-      const py = gy + ((rng() * 2) | 0);
-      if (roll < 0.34) {
-        // dark machine block with a tinted lit edge
-        const w = 3 + ((rng() * 3) | 0);
-        const h = 3 + ((rng() * 2) | 0);
-        ctx.fillStyle = "#05080b";
-        ctx.fillRect(px, py, w, h);
-        ctx.fillStyle = hexA(tint, 0.5);
-        ctx.fillRect(px, py, w, 1);
-      } else if (roll < 0.46) {
-        // short pipe run
-        ctx.fillStyle = hexA(tint, 0.28);
-        if (rng() < 0.5) ctx.fillRect(px, py + 1, 6, 1);
-        else ctx.fillRect(px + 1, py, 1, 6);
-      } else if (roll < 0.56) {
-        // bright LED
-        ctx.fillStyle = hexA(rng() < 0.7 ? tint : C.amber, 0.85);
-        ctx.fillRect(px, py, 1, 1);
-      }
+// Lays the room's furniture palette across the floor on a jittered grid so each
+// room looks packed with recognisable objects rather than abstract noise.
+function placeProps(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
+  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
+  const palette = FURN[r.id] ?? ["console"];
+  const cw = 24;
+  const ch = 26;
+  const left = r.x + 8;
+  const right = r.x + r.w - 18;
+  const top = r.y + 12;
+  const bot = r.y + r.h - 22;
+  let k = 0;
+  // gather cells first, then draw sorted by y so lower objects overlap upper
+  const cells: { x: number; y: number; p: Prop }[] = [];
+  for (let gy = top; gy <= bot; gy += ch) {
+    for (let gx = left; gx <= right; gx += cw) {
+      if (rng() < 0.22) continue; // leave some walking space
+      const p = palette[k++ % palette.length];
+      cells.push({
+        x: Math.round(gx + rng() * 4),
+        y: Math.round(gy + rng() * 4),
+        p,
+      });
     }
   }
+  cells.sort((a, b) => a.y - b.y);
+  for (const c of cells) drawProp(ctx, c.p, c.x, c.y, tint);
 }
 
 // ── procedural pixel furniture (copyright-clean, drawn by hand) ──
@@ -637,6 +694,74 @@ function drawProp(ctx: CanvasRenderingContext2D, kind: Prop, x: number, y: numbe
       ctx.fillRect(x + 1, y + 2, 8, 7);
       ctx.fillStyle = hexA(C.toxic, 0.9);
       ctx.fillRect(x + 3, y + 1, 4, 4);
+      break;
+    }
+    case "desk": {
+      // operator workstation: desk + lit monitor + seat
+      ctx.fillStyle = "#12161d";
+      ctx.fillRect(x, y + 4, 15, 7); // desk top
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(x, y + 11, 15, 1); // front edge shadow
+      ctx.fillStyle = "#05070c"; // monitor back
+      ctx.fillRect(x + 3, y, 9, 5);
+      ctx.fillStyle = hexA(color, 0.6); // screen
+      ctx.fillRect(x + 4, y + 1, 7, 3);
+      ctx.fillStyle = hexA(color, 0.95);
+      ctx.fillRect(x + 5, y + 2, 2, 1);
+      ctx.fillStyle = "#2a3038"; // seat
+      ctx.fillRect(x + 5, y + 13, 5, 3);
+      ctx.fillStyle = "#1a1f26";
+      ctx.fillRect(x + 5, y + 12, 5, 1);
+      break;
+    }
+    case "chair": {
+      ctx.fillStyle = "#2a3038";
+      ctx.fillRect(x + 2, y + 4, 6, 4); // seat
+      ctx.fillStyle = "#1a1f26";
+      ctx.fillRect(x + 2, y + 2, 6, 2); // backrest
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(x + 4, y + 8, 2, 2); // stem
+      break;
+    }
+    case "table": {
+      ctx.fillStyle = "#161b12";
+      ctx.fillRect(x, y + 3, 15, 8); // surface
+      ctx.fillStyle = "#0e120c";
+      ctx.fillRect(x + 1, y + 10, 13, 1);
+      // items on top
+      ctx.fillStyle = hexA(color, 0.8);
+      ctx.fillRect(x + 3, y + 5, 2, 2);
+      ctx.fillStyle = hexA(C.amber, 0.85);
+      ctx.fillRect(x + 8, y + 6, 2, 1);
+      ctx.fillStyle = "#8a94a0";
+      ctx.fillRect(x + 11, y + 5, 2, 2);
+      break;
+    }
+    case "tank": {
+      // vertical containment cylinder with glowing liquid
+      ctx.fillStyle = "#0a0e14";
+      ctx.fillRect(x + 2, y, 9, 16);
+      ctx.fillStyle = "#05080c";
+      ctx.fillRect(x + 2, y, 1, 16);
+      ctx.fillStyle = hexA(color, 0.4);
+      ctx.fillRect(x + 3, y + 3, 7, 11); // liquid
+      ctx.fillStyle = hexA(color, 0.85);
+      ctx.fillRect(x + 4, y + 4, 1, 9); // highlight
+      ctx.fillStyle = "#1a1f28"; // caps
+      ctx.fillRect(x + 1, y, 11, 2);
+      ctx.fillRect(x + 1, y + 14, 11, 2);
+      break;
+    }
+    case "barrel": {
+      ctx.fillStyle = "#3a2c1c";
+      ctx.fillRect(x + 2, y + 3, 9, 11);
+      ctx.fillStyle = "#4a3826";
+      ctx.fillRect(x + 3, y + 3, 7, 11);
+      ctx.fillStyle = "#1a140c"; // rings
+      ctx.fillRect(x + 2, y + 6, 9, 1);
+      ctx.fillRect(x + 2, y + 10, 9, 1);
+      ctx.fillStyle = hexA(C.amber, 0.5);
+      ctx.fillRect(x + 5, y + 4, 3, 1);
       break;
     }
   }
@@ -874,17 +999,27 @@ function Station() {
     const ctx = canvas.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
 
-    const stars = Array.from({ length: 90 }, () => ({
-      x: (Math.random() * W) | 0,
-      y: (Math.random() * H) | 0,
-      b: 0.15 + Math.random() * 0.5,
-    }));
+    const stars = Array.from({ length: 260 }, () => {
+      const bright = Math.random();
+      return {
+        x: (Math.random() * W) | 0,
+        y: (Math.random() * H) | 0,
+        b: 0.1 + bright * bright * 0.7,
+        s: bright > 0.82 ? 1 : 0,
+      };
+    });
 
-    // static layer cached to an offscreen canvas
+    // static layer cached to an offscreen canvas (procedural sky first)
     const off = document.createElement("canvas");
     off.width = W;
     off.height = H;
-    drawStatic(off.getContext("2d")!, stars);
+    const octx = off.getContext("2d")!;
+    drawStatic(octx, stars);
+    // if a real starfield photo is present at public/station-bg.jpg, use it
+    const bg = new Image();
+    bg.onload = () => drawStatic(octx, stars, bg);
+    bg.onerror = () => {};
+    bg.src = "/station-bg.jpg";
 
     // crew that walks around the rooms
     charsRef.current = initCharacters();
