@@ -40,8 +40,9 @@ const C = {
 const EDGE = C.cyan;
 
 /* ───────────────────────────── logical canvas ──────────────────────────── */
-const W = 640;
-const H = 400;
+// Doubled from 640×400 to give the pixel art far more detail headroom.
+const W = 1280;
+const H = 800;
 
 type Theme = keyof typeof ROOM_THEME;
 // Each room keeps the shared cyan frame (EDGE) but glows in its own tint.
@@ -72,23 +73,23 @@ const ROOMS: Room[] = [
   {
     id: "cmd",
     label: "COMMANDER",
-    x: 248,
-    y: 150,
-    w: 150,
-    h: 112,
+    x: 496,
+    y: 300,
+    w: 300,
+    h: 224,
     theme: "green",
     boss: true,
-    crew: 2,
+    crew: 3,
   },
-  { id: "resA", label: "RECHERCHE α", x: 22, y: 26, w: 122, h: 94, theme: "steel", crew: 3 },
-  { id: "resB", label: "RECHERCHE β", x: 22, y: 154, w: 122, h: 94, theme: "violet", crew: 3 },
-  { id: "resG", label: "RECHERCHE γ", x: 22, y: 282, w: 122, h: 94, theme: "steel", crew: 3 },
-  { id: "fact", label: "FAKTENCHECK", x: 176, y: 24, w: 120, h: 86, theme: "amber", crew: 2 },
-  { id: "confl", label: "WIDERSPRUCH", x: 364, y: 24, w: 120, h: 86, theme: "deep", crew: 2 },
-  { id: "synth", label: "SYNTHESE", x: 502, y: 96, w: 116, h: 92, theme: "green", crew: 2 },
-  { id: "crit", label: "KRITIKER", x: 502, y: 224, w: 116, h: 92, theme: "toxic", crew: 2 },
-  { id: "cite", label: "ZITATION", x: 364, y: 302, w: 120, h: 74, theme: "amber", crew: 2 },
-  { id: "rep", label: "REPORT", x: 182, y: 302, w: 120, h: 74, theme: "ember", crew: 3 },
+  { id: "resA", label: "RECHERCHE α", x: 44, y: 52, w: 244, h: 188, theme: "steel", crew: 4 },
+  { id: "resB", label: "RECHERCHE β", x: 44, y: 308, w: 244, h: 188, theme: "violet", crew: 4 },
+  { id: "resG", label: "RECHERCHE γ", x: 44, y: 564, w: 244, h: 188, theme: "steel", crew: 4 },
+  { id: "fact", label: "FAKTENCHECK", x: 352, y: 48, w: 240, h: 172, theme: "amber", crew: 3 },
+  { id: "confl", label: "WIDERSPRUCH", x: 728, y: 48, w: 240, h: 172, theme: "deep", crew: 3 },
+  { id: "synth", label: "SYNTHESE", x: 1004, y: 192, w: 232, h: 184, theme: "green", crew: 3 },
+  { id: "crit", label: "KRITIKER", x: 1004, y: 448, w: 232, h: 184, theme: "toxic", crew: 3 },
+  { id: "cite", label: "ZITATION", x: 728, y: 604, w: 240, h: 148, theme: "amber", crew: 3 },
+  { id: "rep", label: "REPORT", x: 364, y: 604, w: 240, h: 148, theme: "ember", crew: 4 },
 ];
 const ROOM = Object.fromEntries(ROOMS.map((r) => [r.id, r])) as Record<string, Room>;
 const cx = (r: Room) => r.x + r.w / 2;
@@ -312,10 +313,10 @@ interface Character {
 // clear of the machinery lined up along the top wall.
 function roomWalk(r: Room) {
   return {
-    x0: r.x + 16,
-    y0: r.y + Math.round(r.h * 0.48),
-    x1: r.x + r.w - 16,
-    y1: r.y + r.h - 12,
+    x0: r.x + 26,
+    y0: r.y + Math.round(r.h * 0.4),
+    x1: r.x + r.w - 26,
+    y1: r.y + r.h - 22,
   };
 }
 function rand(a: number, b: number) {
@@ -335,7 +336,7 @@ function initCharacters(): Character[] {
         y: rand(wk.y0, wk.y1),
         tx: rand(wk.x0, wk.x1),
         ty: rand(wk.y0, wk.y1),
-        spd: boss ? 0.014 : rand(0.018, 0.03),
+        spd: boss ? 0.026 : rand(0.032, 0.052),
         face: Math.random() < 0.5 ? -1 : 1,
         step: Math.random() * 6,
         idle: rand(0, 1200),
@@ -360,7 +361,7 @@ function updateCharacters(chars: Character[], dt: number, active: Record<string,
     const dx = ch.tx - ch.x;
     const dy = ch.ty - ch.y;
     const d = Math.hypot(dx, dy);
-    if (d < 1.3) {
+    if (d < 2.5) {
       // arrived — sometimes pause, then pick a fresh target
       ch.idle = Math.random() < 0.6 ? rand(250, 1600) : 0;
       ch.tx = rand(wk.x0, wk.x1);
@@ -372,7 +373,7 @@ function updateCharacters(chars: Character[], dt: number, active: Record<string,
     ch.x += (dx / d) * mv;
     ch.y += (dy / d) * mv;
     ch.face = dx < 0 ? -1 : 1;
-    ch.step += mv * 0.55;
+    ch.step += mv * 0.32;
   }
 }
 
@@ -392,24 +393,32 @@ function drawMilkyWay(
   ctx.fillRect(0, 0, W, H);
   // diagonal galactic haze band
   ctx.save();
-  ctx.translate(W * 0.5, H * 0.5);
+  ctx.translate(W * 0.42, H * 0.5);
   ctx.rotate(-0.5);
-  const band = ctx.createLinearGradient(0, -120, 0, 120);
+  const band = ctx.createLinearGradient(0, -220, 0, 220);
   band.addColorStop(0, "rgba(120,140,170,0)");
-  band.addColorStop(0.5, "rgba(150,165,195,0.16)");
+  band.addColorStop(0.5, "rgba(150,165,195,0.15)");
   band.addColorStop(1, "rgba(120,140,170,0)");
   ctx.fillStyle = band;
-  ctx.fillRect(-W, -70, W * 2, 140);
-  // brighter core of the band
-  const core = ctx.createRadialGradient(-40, 0, 8, -40, 0, 150);
-  core.addColorStop(0, "rgba(200,205,225,0.14)");
+  ctx.fillRect(-W, -140, W * 2, 280);
+  // warm galactic core glow (like the photo's bright bulge)
+  const core = ctx.createRadialGradient(-120, 10, 10, -120, 10, 260);
+  core.addColorStop(0, "rgba(210,180,140,0.18)");
+  core.addColorStop(0.4, "rgba(150,150,170,0.1)");
   core.addColorStop(1, "rgba(200,205,225,0)");
   ctx.fillStyle = core;
-  ctx.fillRect(-W, -100, W * 2, 200);
+  ctx.fillRect(-W, -200, W * 2, 400);
+  // a cooler blue cluster further along the band
+  const blue = ctx.createRadialGradient(180, -20, 6, 180, -20, 150);
+  blue.addColorStop(0, "rgba(120,150,220,0.12)");
+  blue.addColorStop(1, "rgba(120,150,220,0)");
+  ctx.fillStyle = blue;
+  ctx.fillRect(-W, -200, W * 2, 400);
   // dark dust lanes cutting across the band
-  ctx.fillStyle = "rgba(4,5,10,0.5)";
-  ctx.fillRect(-W, -6, W * 2, 5);
-  ctx.fillRect(-W, 14, W * 2, 3);
+  ctx.fillStyle = "rgba(4,5,10,0.55)";
+  ctx.fillRect(-W, -12, W * 2, 9);
+  ctx.fillRect(-W, 26, W * 2, 6);
+  ctx.fillRect(-W, 60, W * 2, 4);
   ctx.restore();
   // layered stars
   for (const s of stars) {
@@ -453,14 +462,22 @@ function drawStatic(
     const pts = edgePath(a, b);
     polyline(ctx, pts);
     ctx.strokeStyle = hexA(C.ash, 0.28);
-    ctx.lineWidth = 14;
+    ctx.lineWidth = 26;
     ctx.stroke();
     ctx.strokeStyle = "#080a12";
-    ctx.lineWidth = 11;
+    ctx.lineWidth = 20;
     ctx.stroke();
+    // rails
+    ctx.strokeStyle = hexA(EDGE, 0.14);
+    ctx.lineWidth = 22;
+    ctx.stroke();
+    ctx.strokeStyle = "#080a12";
+    ctx.lineWidth = 18;
+    ctx.stroke();
+    // dashed centre line
     ctx.strokeStyle = hexA(C.ash, 0.16);
-    ctx.setLineDash([2, 4]);
-    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 8]);
+    ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -517,8 +534,8 @@ function cornerBracket(
   sx: number,
   sy: number,
 ) {
-  const L = 8;
-  const T = 2;
+  const L = 16;
+  const T = 3;
   ctx.fillStyle = C.yellow;
   const hx = sx > 0 ? x : x - L;
   const hy = sy > 0 ? y : y - T;
@@ -539,19 +556,19 @@ function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
 
   // inner wall band with door gaps top & bottom
   ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillRect(r.x + 3, r.y + 3, r.w - 6, 4); // top wall
-  ctx.fillRect(r.x + 3, r.y + r.h - 7, r.w - 6, 4); // bottom wall
+  ctx.fillRect(r.x + 5, r.y + 5, r.w - 10, 7); // top wall
+  ctx.fillRect(r.x + 5, r.y + r.h - 12, r.w - 10, 7); // bottom wall
   ctx.fillStyle = th.floor; // carve doors
-  ctx.fillRect(cx(r) - 6, r.y + 3, 12, 4);
-  ctx.fillRect(cx(r) - 6, r.y + r.h - 7, 12, 4);
+  ctx.fillRect(cx(r) - 11, r.y + 5, 22, 7);
+  ctx.fillRect(cx(r) - 11, r.y + r.h - 12, 22, 7);
 
   // real furniture placed across the whole floor
   placeProps(ctx, r, th.tint);
 
   // shared cyan wall frame
   ctx.strokeStyle = EDGE;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
   // yellow L-brackets at the four corners
   cornerBracket(ctx, r.x - 1, r.y - 1, 1, 1);
   cornerBracket(ctx, r.x + r.w, r.y - 1, -1, 1);
@@ -562,28 +579,37 @@ function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
 // A faint floor grid + a couple of wall pipe runs — a subtle backdrop that the
 // real furniture (placeProps) sits on top of.
 function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const top = r.y + 9;
-  const bot = r.y + r.h - 9;
-  const left = r.x + 5;
-  const right = r.x + r.w - 5;
+  const top = r.y + 14;
+  const bot = r.y + r.h - 14;
+  const left = r.x + 8;
+  const right = r.x + r.w - 8;
+  // fine floor tile grid
   ctx.strokeStyle = hexA(tint, 0.05);
   ctx.lineWidth = 1;
-  for (let gx = left; gx < right; gx += 12) {
+  for (let gx = left; gx < right; gx += 16) {
     ctx.beginPath();
     ctx.moveTo(gx + 0.5, top);
     ctx.lineTo(gx + 0.5, bot);
     ctx.stroke();
   }
-  for (let gy = top; gy < bot; gy += 12) {
+  for (let gy = top; gy < bot; gy += 16) {
     ctx.beginPath();
     ctx.moveTo(left, gy + 0.5);
     ctx.lineTo(right, gy + 0.5);
     ctx.stroke();
   }
-  // a couple of pipe runs along the side walls
-  ctx.fillStyle = hexA(tint, 0.18);
-  ctx.fillRect(r.x + 3, top, 1, bot - top);
-  ctx.fillRect(r.x + r.w - 4, top, 1, bot - top);
+  // rivets at grid intersections for texture
+  ctx.fillStyle = hexA(tint, 0.09);
+  for (let gy = top; gy < bot; gy += 32) {
+    for (let gx = left; gx < right; gx += 32) ctx.fillRect(gx, gy, 1, 1);
+  }
+  // pipe conduits along the side walls
+  ctx.fillStyle = hexA(tint, 0.16);
+  ctx.fillRect(r.x + 5, top, 2, bot - top);
+  ctx.fillRect(r.x + r.w - 7, top, 2, bot - top);
+  // a hazard stripe near the lower wall
+  ctx.fillStyle = hexA(C.amber, 0.12);
+  for (let sx0 = left; sx0 < right; sx0 += 10) ctx.fillRect(sx0, bot - 3, 5, 2);
 }
 
 // Lays the room's furniture palette across the floor on a jittered grid so each
@@ -591,22 +617,22 @@ function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
 function placeProps(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
   const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
   const palette = FURN[r.id] ?? ["console"];
-  const cw = 24;
-  const ch = 26;
-  const left = r.x + 8;
-  const right = r.x + r.w - 18;
-  const top = r.y + 12;
-  const bot = r.y + r.h - 22;
+  const cw = 42;
+  const ch = 46;
+  const left = r.x + 14;
+  const right = r.x + r.w - 30;
+  const top = r.y + 18;
+  const bot = r.y + r.h - 40;
   let k = 0;
   // gather cells first, then draw sorted by y so lower objects overlap upper
   const cells: { x: number; y: number; p: Prop }[] = [];
   for (let gy = top; gy <= bot; gy += ch) {
     for (let gx = left; gx <= right; gx += cw) {
-      if (rng() < 0.22) continue; // leave some walking space
+      if (rng() < 0.18) continue; // leave some walking space
       const p = palette[k++ % palette.length];
       cells.push({
-        x: Math.round(gx + rng() * 4),
-        y: Math.round(gy + rng() * 4),
+        x: Math.round(gx + rng() * 8),
+        y: Math.round(gy + rng() * 8),
         p,
       });
     }
@@ -617,151 +643,224 @@ function placeProps(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
 
 // ── procedural pixel furniture (copyright-clean, drawn by hand) ──
 function drawProp(ctx: CanvasRenderingContext2D, kind: Prop, x: number, y: number, color: string) {
+  const shadow = () => {
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+  };
   switch (kind) {
     case "rack": {
-      ctx.fillStyle = "#0d1018";
-      ctx.fillRect(x, y, 10, 16);
+      // tall server cabinet, 18×30, lit slats + top status light
+      shadow();
+      ctx.fillRect(x + 2, y + 28, 18, 3);
+      ctx.fillStyle = "#0e1119";
+      ctx.fillRect(x, y, 18, 28);
       ctx.fillStyle = "#05070c";
-      ctx.fillRect(x + 1, y + 1, 8, 14);
-      for (let ry = y + 2; ry < y + 15; ry += 3) {
-        ctx.fillStyle = shade(color, 0.7);
-        ctx.fillRect(x + 2, ry, 6, 1);
-        ctx.fillStyle = hexA(color, 0.9);
-        ctx.fillRect(x + 2, ry, 1, 1);
+      ctx.fillRect(x + 2, y + 2, 14, 24);
+      for (let ry = y + 4; ry < y + 25; ry += 4) {
+        ctx.fillStyle = shade(color, 0.6);
+        ctx.fillRect(x + 3, ry, 12, 2);
+        ctx.fillStyle = hexA(color, 0.95);
+        ctx.fillRect(x + 4, ry, 2, 2);
+        ctx.fillStyle = hexA(C.amber, 0.8);
+        ctx.fillRect(x + 12, ry, 1, 1);
       }
+      ctx.fillStyle = hexA(color, 0.9);
+      ctx.fillRect(x + 6, y - 1, 6, 1); // top glow bar
       break;
     }
     case "console": {
-      ctx.fillStyle = "#0d1018";
-      ctx.fillRect(x, y + 6, 14, 6);
+      // control desk, 24×20, angled lit screen + button row
+      shadow();
+      ctx.fillRect(x + 1, y + 18, 24, 3);
+      ctx.fillStyle = "#12161d";
+      ctx.fillRect(x, y + 10, 24, 9); // desk body
       ctx.fillStyle = "#0a0d14";
-      ctx.fillRect(x + 1, y, 12, 6); // screen back
-      ctx.fillStyle = hexA(color, 0.55);
-      ctx.fillRect(x + 2, y + 1, 10, 4); // glowing screen
+      ctx.fillRect(x + 2, y, 20, 10); // screen bezel
+      ctx.fillStyle = hexA(color, 0.5);
+      ctx.fillRect(x + 3, y + 1, 18, 7); // screen
       ctx.fillStyle = hexA(color, 0.95);
-      ctx.fillRect(x + 3, y + 2, 3, 1);
+      ctx.fillRect(x + 5, y + 3, 8, 1);
+      ctx.fillRect(x + 5, y + 5, 5, 1);
+      // button row
+      for (let bx = x + 3; bx < x + 21; bx += 3) {
+        ctx.fillStyle = hexA(Math.random() < 0.5 ? color : C.amber, 0.7);
+        ctx.fillRect(bx, y + 12, 2, 2);
+      }
       break;
     }
     case "reactor": {
+      // glowing power core, 24×24
+      shadow();
+      ctx.fillRect(x, y + 22, 24, 3);
       ctx.fillStyle = "#0b0e16";
-      ctx.fillRect(x - 1, y, 14, 14);
+      ctx.fillRect(x, y, 24, 24);
+      ctx.fillStyle = "#05070c";
+      ctx.fillRect(x + 2, y + 2, 20, 20);
       ctx.fillStyle = shade(color, 0.5);
-      ctx.fillRect(x + 1, y + 2, 10, 10);
-      ctx.fillStyle = hexA(color, 0.9);
-      ctx.fillRect(x + 4, y + 1, 4, 12);
-      ctx.fillRect(x + 1, y + 4, 10, 4);
+      ctx.fillRect(x + 5, y + 5, 14, 14);
+      ctx.fillStyle = hexA(color, 0.85);
+      ctx.fillRect(x + 10, y + 3, 4, 18); // cross
+      ctx.fillRect(x + 3, y + 10, 18, 4);
       ctx.fillStyle = "#fff";
-      ctx.fillRect(x + 5, y + 5, 2, 2);
+      ctx.fillRect(x + 10, y + 10, 4, 4); // hot centre
+      // corner bolts
+      ctx.fillStyle = shade(color, 0.7);
+      for (const [bx, by] of [
+        [x + 2, y + 2],
+        [x + 20, y + 2],
+        [x + 2, y + 20],
+        [x + 20, y + 20],
+      ])
+        ctx.fillRect(bx, by, 2, 2);
       break;
     }
     case "crate": {
+      // stacked supply crates, 18×18
+      shadow();
+      ctx.fillRect(x + 1, y + 16, 18, 3);
       ctx.fillStyle = "#2a2016";
-      ctx.fillRect(x, y + 4, 10, 10);
+      ctx.fillRect(x, y, 18, 18);
       ctx.fillStyle = "#3a2c1c";
-      ctx.fillRect(x + 1, y + 5, 8, 8);
-      ctx.strokeStyle = "#1a140c";
+      ctx.fillRect(x + 1, y + 1, 16, 16);
+      ctx.strokeStyle = "#15100a";
       ctx.lineWidth = 1;
+      ctx.strokeRect(x + 1.5, y + 1.5, 15, 15);
       ctx.beginPath();
-      ctx.moveTo(x + 1, y + 5);
-      ctx.lineTo(x + 9, y + 13);
-      ctx.moveTo(x + 9, y + 5);
-      ctx.lineTo(x + 1, y + 13);
+      ctx.moveTo(x + 2, y + 2);
+      ctx.lineTo(x + 16, y + 16);
+      ctx.moveTo(x + 16, y + 2);
+      ctx.lineTo(x + 2, y + 16);
       ctx.stroke();
+      ctx.fillStyle = hexA(C.amber, 0.7); // label
+      ctx.fillRect(x + 6, y + 8, 6, 2);
       break;
     }
     case "pod": {
+      // sleep capsule, 28×16, glass with occupant silhouette
+      shadow();
+      ctx.fillRect(x, y + 14, 28, 3);
       ctx.fillStyle = "#0d1018";
-      ctx.fillRect(x - 1, y + 3, 16, 9);
-      ctx.fillStyle = hexA(color, 0.35);
-      ctx.fillRect(x + 1, y + 4, 12, 7); // glass
-      ctx.fillStyle = hexA(color, 0.7);
-      ctx.fillRect(x + 2, y + 5, 10, 1);
+      ctx.fillRect(x, y + 2, 28, 12);
+      ctx.fillStyle = hexA(color, 0.3);
+      ctx.fillRect(x + 2, y + 4, 24, 8); // glass
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(x + 8, y + 6, 12, 4); // occupant
+      ctx.fillStyle = hexA(color, 0.85);
+      ctx.fillRect(x + 2, y + 4, 24, 1); // rim light
+      ctx.fillStyle = hexA(C.amber, 0.8);
+      ctx.fillRect(x + 24, y + 8, 2, 2); // status led
       break;
     }
     case "screen": {
+      // wall monitor bank, 24×16
+      shadow();
       ctx.fillStyle = "#0d1018";
-      ctx.fillRect(x, y, 12, 8);
-      ctx.fillStyle = hexA(color, 0.45);
-      ctx.fillRect(x + 1, y + 1, 10, 6);
-      ctx.fillStyle = hexA(color, 0.85);
-      for (let ly = y + 2; ly < y + 7; ly += 2) ctx.fillRect(x + 2, ly, 8, 1);
+      ctx.fillRect(x, y, 24, 16);
+      ctx.fillStyle = hexA(color, 0.4);
+      ctx.fillRect(x + 2, y + 2, 20, 12);
+      ctx.fillStyle = hexA(color, 0.9);
+      for (let ly = y + 3; ly < y + 13; ly += 2) ctx.fillRect(x + 3, ly, 4 + ((ly * 7) % 14), 1);
+      ctx.strokeStyle = shade(color, 0.6);
+      ctx.strokeRect(x + 0.5, y + 0.5, 23, 15);
       break;
     }
     case "plant": {
+      // hydroponic plant, 14×22
       ctx.fillStyle = "#241a10";
-      ctx.fillRect(x + 2, y + 8, 6, 5);
-      ctx.fillStyle = shade(C.toxic, 0.8);
-      ctx.fillRect(x + 1, y + 2, 8, 7);
+      ctx.fillRect(x + 2, y + 14, 10, 8); // pot
+      ctx.fillStyle = "#1a130a";
+      ctx.fillRect(x + 2, y + 14, 10, 2);
+      ctx.fillStyle = shade(C.toxic, 0.75);
+      ctx.fillRect(x + 1, y + 4, 12, 11); // foliage
       ctx.fillStyle = hexA(C.toxic, 0.9);
-      ctx.fillRect(x + 3, y + 1, 4, 4);
+      ctx.fillRect(x + 4, y, 6, 6);
+      ctx.fillRect(x + 2, y + 6, 3, 4);
+      ctx.fillRect(x + 9, y + 6, 3, 4);
       break;
     }
     case "desk": {
-      // operator workstation: desk + lit monitor + seat
+      // operator workstation, 26×20: desk + monitor + seat + keyboard
+      shadow();
+      ctx.fillRect(x, y + 18, 26, 3);
       ctx.fillStyle = "#12161d";
-      ctx.fillRect(x, y + 4, 15, 7); // desk top
+      ctx.fillRect(x, y + 8, 26, 10); // desk top
       ctx.fillStyle = "#0a0d13";
-      ctx.fillRect(x, y + 11, 15, 1); // front edge shadow
+      ctx.fillRect(x, y + 17, 26, 1);
       ctx.fillStyle = "#05070c"; // monitor back
-      ctx.fillRect(x + 3, y, 9, 5);
+      ctx.fillRect(x + 5, y, 16, 9);
       ctx.fillStyle = hexA(color, 0.6); // screen
-      ctx.fillRect(x + 4, y + 1, 7, 3);
+      ctx.fillRect(x + 6, y + 1, 14, 6);
       ctx.fillStyle = hexA(color, 0.95);
-      ctx.fillRect(x + 5, y + 2, 2, 1);
+      ctx.fillRect(x + 8, y + 3, 4, 1);
+      ctx.fillRect(x + 8, y + 5, 7, 1);
+      ctx.fillStyle = "#1a1f26"; // keyboard
+      ctx.fillRect(x + 8, y + 11, 10, 3);
       ctx.fillStyle = "#2a3038"; // seat
-      ctx.fillRect(x + 5, y + 13, 5, 3);
-      ctx.fillStyle = "#1a1f26";
-      ctx.fillRect(x + 5, y + 12, 5, 1);
+      ctx.fillRect(x + 9, y + 20, 8, 4);
       break;
     }
     case "chair": {
       ctx.fillStyle = "#2a3038";
-      ctx.fillRect(x + 2, y + 4, 6, 4); // seat
+      ctx.fillRect(x + 3, y + 6, 10, 6); // seat
       ctx.fillStyle = "#1a1f26";
-      ctx.fillRect(x + 2, y + 2, 6, 2); // backrest
+      ctx.fillRect(x + 3, y + 2, 10, 4); // backrest
       ctx.fillStyle = "#0a0d13";
-      ctx.fillRect(x + 4, y + 8, 2, 2); // stem
+      ctx.fillRect(x + 7, y + 12, 3, 4); // stem
+      ctx.fillRect(x + 4, y + 15, 9, 1); // base
       break;
     }
     case "table": {
+      // work table with scattered items, 26×18
+      shadow();
+      ctx.fillRect(x, y + 16, 26, 3);
       ctx.fillStyle = "#161b12";
-      ctx.fillRect(x, y + 3, 15, 8); // surface
+      ctx.fillRect(x, y + 4, 26, 12);
       ctx.fillStyle = "#0e120c";
-      ctx.fillRect(x + 1, y + 10, 13, 1);
-      // items on top
+      ctx.fillRect(x, y + 15, 26, 1);
       ctx.fillStyle = hexA(color, 0.8);
-      ctx.fillRect(x + 3, y + 5, 2, 2);
+      ctx.fillRect(x + 4, y + 7, 3, 3); // beaker
       ctx.fillStyle = hexA(C.amber, 0.85);
-      ctx.fillRect(x + 8, y + 6, 2, 1);
+      ctx.fillRect(x + 12, y + 8, 4, 2); // tool
       ctx.fillStyle = "#8a94a0";
-      ctx.fillRect(x + 11, y + 5, 2, 2);
+      ctx.fillRect(x + 19, y + 6, 4, 4); // box
+      ctx.fillStyle = hexA(C.scan, 0.6);
+      ctx.fillRect(x + 9, y + 6, 1, 1);
       break;
     }
     case "tank": {
-      // vertical containment cylinder with glowing liquid
+      // containment cylinder, 16×28, glowing liquid + bubbles
+      shadow();
+      ctx.fillRect(x, y + 26, 16, 3);
       ctx.fillStyle = "#0a0e14";
-      ctx.fillRect(x + 2, y, 9, 16);
+      ctx.fillRect(x + 2, y, 12, 28);
       ctx.fillStyle = "#05080c";
-      ctx.fillRect(x + 2, y, 1, 16);
+      ctx.fillRect(x + 2, y, 2, 28);
       ctx.fillStyle = hexA(color, 0.4);
-      ctx.fillRect(x + 3, y + 3, 7, 11); // liquid
+      ctx.fillRect(x + 4, y + 4, 9, 20); // liquid
       ctx.fillStyle = hexA(color, 0.85);
-      ctx.fillRect(x + 4, y + 4, 1, 9); // highlight
+      ctx.fillRect(x + 5, y + 5, 2, 16); // highlight
+      ctx.fillStyle = hexA(color, 0.6);
+      ctx.fillRect(x + 9, y + 9, 1, 1); // bubbles
+      ctx.fillRect(x + 10, y + 15, 1, 1);
       ctx.fillStyle = "#1a1f28"; // caps
-      ctx.fillRect(x + 1, y, 11, 2);
-      ctx.fillRect(x + 1, y + 14, 11, 2);
+      ctx.fillRect(x + 1, y, 14, 3);
+      ctx.fillRect(x + 1, y + 25, 14, 3);
       break;
     }
     case "barrel": {
-      ctx.fillStyle = "#3a2c1c";
-      ctx.fillRect(x + 2, y + 3, 9, 11);
+      // hazard barrel, 16×22
+      shadow();
+      ctx.fillRect(x, y + 20, 16, 3);
+      ctx.fillStyle = "#2f2416";
+      ctx.fillRect(x + 2, y + 2, 12, 18);
       ctx.fillStyle = "#4a3826";
-      ctx.fillRect(x + 3, y + 3, 7, 11);
-      ctx.fillStyle = "#1a140c"; // rings
-      ctx.fillRect(x + 2, y + 6, 9, 1);
-      ctx.fillRect(x + 2, y + 10, 9, 1);
-      ctx.fillStyle = hexA(C.amber, 0.5);
-      ctx.fillRect(x + 5, y + 4, 3, 1);
+      ctx.fillRect(x + 3, y + 2, 10, 18);
+      ctx.fillStyle = "#15100a"; // rings
+      ctx.fillRect(x + 2, y + 6, 12, 1);
+      ctx.fillRect(x + 2, y + 14, 12, 1);
+      ctx.fillStyle = hexA(C.amber, 0.8); // hazard mark
+      ctx.fillRect(x + 6, y + 9, 4, 4);
+      ctx.fillStyle = "#15100a";
+      ctx.fillRect(x + 7, y + 10, 2, 2);
       break;
     }
   }
@@ -783,12 +882,12 @@ function drawDynamic(
     const glow = Math.min(1, pulse + heat);
     // cyan frame glow
     ctx.strokeStyle = hexA(EDGE, 0.14 + 0.4 * glow);
-    ctx.lineWidth = 1;
-    ctx.strokeRect(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
     if (heat > 0.05) {
       // tinted outer halo + the signature big radial room glow
       ctx.strokeStyle = hexA(th.tint, 0.3 * heat);
-      ctx.strokeRect(r.x - 2.5, r.y - 2.5, r.w + 5, r.h + 5);
+      ctx.strokeRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
       const rg = ctx.createRadialGradient(cx(r), cy(r), 2, cx(r), cy(r), r.w * 0.62);
       rg.addColorStop(0, hexA(th.tint, 0.55 * Math.min(1, heat)));
       rg.addColorStop(0.6, hexA(th.tint, 0.12 * Math.min(1, heat)));
@@ -797,19 +896,19 @@ function drawDynamic(
       ctx.fillRect(r.x - 8, r.y - 8, r.w + 16, r.h + 16);
     }
     // red horizontal scan beam (gently bobbing, brighter with activity)
-    const beamY = Math.round(r.y + r.h * 0.3 + Math.sin(now / 700 + r.x) * 3);
+    const beamY = Math.round(r.y + r.h * 0.3 + Math.sin(now / 700 + r.x) * 6);
     ctx.fillStyle = hexA(C.scan, 0.12);
-    ctx.fillRect(r.x + 2, beamY - 1, r.w - 4, 3);
+    ctx.fillRect(r.x + 4, beamY - 2, r.w - 8, 5);
     ctx.fillStyle = hexA(C.scan, 0.45 + 0.35 * heat + 0.1 * Math.sin(now / 130));
-    ctx.fillRect(r.x + 2, beamY, r.w - 4, 1);
-    // blinking machine LEDs along the top wall
-    const props = FURN[r.id] ?? [];
-    const step = (r.w - 20) / Math.max(1, props.length);
-    for (let i = 0; i < props.length; i++) {
+    ctx.fillRect(r.x + 4, beamY, r.w - 8, 2);
+    // blinking status LEDs along the top wall
+    const nLed = 6;
+    const step = (r.w - 24) / nLed;
+    for (let i = 0; i < nLed; i++) {
       const on = (now / 240 + i * 1.7 + r.y) % 3 < 1.4;
       if (on) {
-        ctx.fillStyle = hexA(C.amber, 0.85);
-        ctx.fillRect(Math.round(r.x + 12 + step * i), r.y + 8, 2, 2);
+        ctx.fillStyle = hexA(i % 2 ? C.amber : EDGE, 0.85);
+        ctx.fillRect(Math.round(r.x + 14 + step * i), r.y + 14, 3, 3);
       }
     }
   }
@@ -823,16 +922,16 @@ function drawDynamic(
   ctx.globalCompositeOperation = "lighter";
   for (const b of beads) {
     const [x, y] = walk(b.pts, Math.min(1, b.t));
-    ctx.fillStyle = hexA(b.color, 0.18);
+    ctx.fillStyle = hexA(b.color, 0.16);
+    ctx.fillRect(x - 6, y - 6, 12, 12);
+    ctx.fillStyle = hexA(b.color, 0.5);
     ctx.fillRect(x - 3, y - 3, 6, 6);
-    ctx.fillStyle = hexA(b.color, 0.55);
-    ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
     ctx.fillStyle = "#fff";
-    ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
-    for (let k = 1; k <= 3; k++) {
-      const [tx, ty] = walk(b.pts, Math.max(0, b.t - k * 0.02));
-      ctx.fillStyle = hexA(b.color, 0.18 / k);
-      ctx.fillRect(tx - 1, ty - 1, 2, 2);
+    ctx.fillRect(x - 1, y - 1, 2, 2);
+    for (let k = 1; k <= 4; k++) {
+      const [tx, ty] = walk(b.pts, Math.max(0, b.t - k * 0.018));
+      ctx.fillStyle = hexA(b.color, 0.16 / k);
+      ctx.fillRect(tx - 2, ty - 2, 4, 4);
     }
   }
 
@@ -843,15 +942,15 @@ function drawDynamic(
 function drawCharGlow(ctx: CanvasRenderingContext2D, ch: Character, now: number, heat: number) {
   const b = ch.boss;
   const pulse = 0.55 + 0.45 * Math.sin(now / (b ? 300 : 520) + ch.wob);
-  const cy0 = ch.y - (b ? 8 : 5);
+  const cy0 = ch.y - (b ? 16 : 11);
   // base aura
-  const rx = b ? 11 : 6;
+  const rx = b ? 20 : 11;
   ctx.fillStyle = hexA(ch.color, (b ? 0.15 : 0.08) * (0.6 + 0.4 * pulse));
   ctx.fillRect(ch.x - rx, cy0 - rx, rx * 2, rx * 2);
   // large radial glow when the crew's room is active — the signature look
   const act = Math.min(1, heat);
   if (act > 0.05 || b) {
-    const R = (b ? 26 : 18) * (0.7 + 0.5 * act);
+    const R = (b ? 52 : 34) * (0.7 + 0.5 * act);
     const g = ctx.createRadialGradient(ch.x, cy0, 1, ch.x, cy0, R);
     g.addColorStop(0, hexA(ch.color, (0.18 + 0.4 * act) * (0.7 + 0.3 * pulse)));
     g.addColorStop(0.5, hexA(ch.color, 0.1 * (0.5 + act)));
@@ -861,74 +960,124 @@ function drawCharGlow(ctx: CanvasRenderingContext2D, ch: Character, now: number,
   }
 }
 
-// A chunky humanoid with a 2-frame walk cycle. ch.(x,y) is the feet centre.
+// A bio-mechanical alien with a 2-frame walk cycle — hunched carapace, spiked
+// shoulders, elongated back-swept skull, glowing eye and a curling tail.
+// ch.(x,y) is the feet centre.
 function drawCharBody(ctx: CanvasRenderingContext2D, ch: Character, now: number) {
   const b = ch.boss;
   const moving = ch.idle <= 0;
   const phase = Math.floor(ch.step) % 2;
-  const breathe = !moving && Math.sin(now / 600 + ch.wob) > 0 ? -1 : 0;
   const x = Math.round(ch.x);
   const y = Math.round(ch.y);
+  const dir = ch.face < 0 ? -1 : 1;
+  const k = b ? 1.7 : 1;
+  const S = (v: number) => Math.round(v * k);
+  const px = (rx: number, ry: number, w: number, h: number) =>
+    ctx.fillRect(x + rx, y + ry, Math.max(1, w), Math.max(1, h));
 
-  const headW = b ? 6 : 4;
-  const headH = b ? 5 : 4;
-  const torW = b ? 8 : 6;
-  const torH = b ? 8 : 6;
-  const legH = b ? 4 : 3;
-  const lw = b ? 3 : 2;
+  // palette — dark chitin, pale bone armour, red accents, tint glow
+  const cara = "#16121e";
+  const caraM = b ? "#37202f" : "#282235";
+  const bone = "#dde1ec";
+  const boneSh = "#9096ab";
+  const red = b ? "#e6273f" : "#a53149";
+  const glow = ch.color;
 
-  // crew wear white/grey armour (like the astronauts in the clip); only the
-  // core + visor glow in the room tint. The boss keeps a tinted suit.
-  const dark = b ? shade(ch.color, 0.5) : "#7f8a95";
-  const mid = b ? shade(ch.color, 0.82) : "#dde6ee";
-  const legTop = y - legH;
+  const legH = S(6);
+  const torH = S(9);
+  const torW = S(8);
+  const headH = S(7);
+  const breathe = !moving && Math.sin(now / 500 + ch.wob) > 0 ? -1 : 0;
+  const legTop = -legH;
   const torTop = legTop - torH + breathe;
-  const headTop = torTop - headH;
+  const headTop = torTop - headH + S(2);
 
   // ground shadow
   ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(x - torW / 2 - 1, y, torW + 2, 2);
+  px(-torW, 0, torW * 2, S(2));
 
-  // legs (alternating step)
-  ctx.fillStyle = dark;
-  const liftL = moving ? (phase ? -1 : 0) : 0;
-  const liftR = moving ? (phase ? 0 : -1) : 0;
-  ctx.fillRect(x - torW / 2, legTop + liftL, lw, legH - liftL);
-  ctx.fillRect(x + torW / 2 - lw, legTop + liftR, lw, legH - liftR);
+  // ── tail: segments curling out behind, ending in a barb ──
+  ctx.fillStyle = cara;
+  let txp = -dir * S(3);
+  let typ = torTop + torH - S(2);
+  for (let i = 0; i < S(6); i++) {
+    px(txp, typ, S(2), S(2));
+    txp -= dir * S(1.4);
+    typ += Math.sin(i * 0.7 + now / 320) > 0 ? -1 : 1; // subtle sway
+    if (i > S(3)) typ -= 1; // curl upward at the end
+  }
+  ctx.fillStyle = red;
+  px(txp - (dir > 0 ? 0 : 1), typ - 1, 2, 2); // barb tip
 
-  // arms
-  ctx.fillStyle = dark;
-  ctx.fillRect(x - torW / 2 - 1, torTop + 1, 1, torH - 2);
-  ctx.fillRect(x + torW / 2, torTop + 1, 1, torH - 2);
+  // ── legs (digitigrade, alternating step) ──
+  const liftL = moving ? (phase ? -S(2) : 0) : 0;
+  const liftR = moving ? (phase ? 0 : -S(2)) : 0;
+  ctx.fillStyle = caraM;
+  px(-S(3), legTop + liftL, S(2), legH - liftL);
+  px(S(1), legTop + liftR, S(2), legH - liftR);
+  ctx.fillStyle = cara; // clawed feet
+  px(-S(4), legTop + liftL + legH - 1, S(3), 1);
+  px(S(1), legTop + liftR + legH - 1, S(3), 1);
 
-  // torso + lit core
-  ctx.fillStyle = mid;
-  ctx.fillRect(x - torW / 2, torTop, torW, torH);
-  ctx.fillStyle = ch.color;
-  ctx.fillRect(x - 1, torTop + 1, b ? 3 : 2, torH - 2);
+  // ── hunched torso: dark carapace with bone ribs + tint spine ──
+  ctx.fillStyle = caraM;
+  px(-torW / 2, torTop, torW, torH);
+  ctx.fillStyle = cara;
+  px(-torW / 2, torTop, torW, 1);
+  ctx.fillStyle = bone; // rib plates
+  px(-torW / 2 + 1, torTop + S(2), torW - 2, 1);
+  px(-torW / 2 + 1, torTop + S(4), torW - 3, 1);
+  ctx.fillStyle = glow; // glowing spine core
+  px(-1, torTop + 1, S(2), torH - 2);
 
-  // head + visor eye on the facing side
-  ctx.fillStyle = mid;
-  ctx.fillRect(x - headW / 2, headTop, headW, headH);
-  ctx.fillStyle = "#fff";
-  const ex = ch.face < 0 ? x - headW / 2 + 1 : x + headW / 2 - 2;
-  ctx.fillRect(ex, headTop + (b ? 2 : 1), b ? 2 : 1, 1);
+  // ── long front arm reaching forward with a claw ──
+  ctx.fillStyle = caraM;
+  const armY = torTop + S(2);
+  px(dir > 0 ? torW / 2 - 1 : -torW / 2 - S(2) + 1, armY, S(3), 1);
+  px(dir > 0 ? torW / 2 + S(1) : -torW / 2 - S(2), armY, 1, S(3));
+  ctx.fillStyle = bone;
+  px(dir > 0 ? torW / 2 + S(1) : -torW / 2 - S(2), armY + S(3), 1, 1); // claw
 
-  // boss crown + pauldrons
+  // ── shoulder spikes (pauldrons) ──
+  ctx.fillStyle = bone;
+  px(-torW / 2 - 1, torTop, 2, S(2));
+  px(torW / 2 - 1, torTop, 2, S(2));
+  ctx.fillStyle = boneSh;
+  px(-torW / 2 - 1, torTop - 1, 1, 1);
+  px(torW / 2, torTop - 1, 1, 1);
+
+  // ── elongated back-swept skull ──
+  ctx.fillStyle = b ? bone : caraM; // boss has a pale skull face
+  const hw = S(6);
+  // stacked rows sweeping backward (opposite facing) toward the crest
+  for (let i = 0; i < headH; i++) {
+    const rw = Math.max(2, hw - i);
+    const shift = Math.round((-dir * i) / 1.6) + (dir > 0 ? -1 : 1 - rw + hw);
+    px(-hw / 2 + shift + (dir > 0 ? i / 2 : -i / 2), headTop + i, rw, 1);
+  }
+  // brow ridge + glowing eye slit on the facing side
+  ctx.fillStyle = b ? red : cara;
+  px(dir > 0 ? 0 : -hw / 2, headTop + S(2), hw / 2, 1);
+  ctx.fillStyle = glow;
+  px(dir > 0 ? S(1) : -S(2), headTop + S(3), S(2), 1); // eye
+  // inner jaw glow
+  ctx.fillStyle = hexA(glow, 0.6);
+  px(dir > 0 ? 0 : -S(1), headTop + headH - 1, S(2), 1);
+
+  // boss crest of spikes
   if (b) {
-    ctx.fillStyle = ch.color;
-    ctx.fillRect(x - 1, headTop - 2, 2, 2);
-    ctx.fillStyle = dark;
-    ctx.fillRect(x - torW / 2 - 1, torTop, 2, 2);
-    ctx.fillRect(x + torW / 2 - 1, torTop, 2, 2);
+    ctx.fillStyle = red;
+    px(-1, headTop - S(2), 2, S(2));
+    px(-S(3), headTop - S(1), 1, S(1));
+    px(S(2), headTop - S(1), 1, S(1));
   }
 }
 
 function drawMinimap(ctx: CanvasRenderingContext2D, active: Record<string, number>, now: number) {
-  const mw = 78,
-    mh = 50,
-    mx = W - mw - 6,
-    my = H - mh - 6;
+  const mw = 150,
+    mh = 96,
+    mx = W - mw - 12,
+    my = H - mh - 12;
   const sx = mw / W,
     sy = mh / H;
   ctx.fillStyle = "rgba(4,5,10,0.85)";
@@ -1471,7 +1620,7 @@ const sx: Record<string, React.CSSProperties> = {
     padding: 12,
     background: C.void,
   },
-  stageInner: { position: "relative", width: "100%", maxWidth: 900, aspectRatio: `${W} / ${H}` },
+  stageInner: { position: "relative", width: "100%", maxWidth: 1180, aspectRatio: `${W} / ${H}` },
   canvas: {
     width: "100%",
     height: "100%",
