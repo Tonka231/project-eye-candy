@@ -511,110 +511,200 @@ function mulberry(seed: number) {
   };
 }
 
-// L-shaped yellow bracket at a room corner (x,y) with arms extending in the
-// sx/sy directions (+1 right/down, -1 left/up) — the video's frame markers.
-function cornerBracket(
+// Rounded-rectangle path helper (falls back gracefully on older canvases).
+function roundRectPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  sx: number,
-  sy: number,
+  w: number,
+  h: number,
+  rad: number,
 ) {
-  const L = 16;
-  const T = 3;
-  ctx.fillStyle = C.yellow;
-  const hx = sx > 0 ? x : x - L;
-  const hy = sy > 0 ? y : y - T;
-  ctx.fillRect(hx, hy, L, T); // horizontal arm
-  const vx = sx > 0 ? x : x - T;
-  const vy = sy > 0 ? y : y - L;
-  ctx.fillRect(vx, vy, T, L); // vertical arm
+  const rr = Math.min(rad, w / 2, h / 2);
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, w, h, rr);
+  } else {
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+}
+
+// Thick dark station hull around a room: rounded metal frame with a bevel, a
+// bright inner edge and small corner tech notches — the video's chunky border.
+function drawHull(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
+  ctx.save();
+  ctx.lineJoin = "round";
+  // outer dark metal frame
+  ctx.strokeStyle = "#0b0d13";
+  ctx.lineWidth = 8;
+  roundRectPath(ctx, r.x + 4, r.y + 4, r.w - 8, r.h - 8, 12);
+  ctx.stroke();
+  // lighter bevel highlight
+  ctx.strokeStyle = "#20242e";
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, 12);
+  ctx.stroke();
+  // bright inner edge (cyan)
+  ctx.strokeStyle = hexA(EDGE, 0.7);
+  ctx.lineWidth = 1;
+  roundRectPath(ctx, r.x + 8, r.y + 8, r.w - 16, r.h - 16, 7);
+  ctx.stroke();
+  ctx.restore();
+  // corner tech notches
+  ctx.fillStyle = hexA(tint, 0.8);
+  const n = 6;
+  for (const [ox, oy] of [
+    [r.x + 6, r.y + 6],
+    [r.x + r.w - 6 - n, r.y + 6],
+    [r.x + 6, r.y + r.h - 6 - 2],
+    [r.x + r.w - 6 - n, r.y + r.h - 6 - 2],
+  ]) {
+    ctx.fillRect(ox, oy, n, 2);
+  }
 }
 
 function drawRoom(ctx: CanvasRenderingContext2D, r: Room) {
   const th = ROOM_THEME[r.theme];
-  // floor base
+  // clip everything to a rounded rectangle so the module has soft corners
+  ctx.save();
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
+  ctx.clip();
+
+  // floor base + a tinted radial vignette so the interior glows from the middle
   ctx.fillStyle = th.floor;
   ctx.fillRect(r.x, r.y, r.w, r.h);
+  const vg = ctx.createRadialGradient(cx(r), cy(r), 6, cx(r), cy(r), r.w * 0.7);
+  vg.addColorStop(0, hexA(th.tint, 0.14));
+  vg.addColorStop(1, hexA(th.tint, 0));
+  ctx.fillStyle = vg;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
 
-  // dense "circuit-board" interior packed across the whole floor
+  // dense circuit-board interior packed across the whole floor
   drawRoomDetail(ctx, r, th.tint);
 
-  // inner wall band with door gaps top & bottom
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillRect(r.x + 5, r.y + 5, r.w - 10, 7); // top wall
-  ctx.fillRect(r.x + 5, r.y + r.h - 12, r.w - 10, 7); // bottom wall
-  ctx.fillStyle = th.floor; // carve doors
-  ctx.fillRect(cx(r) - 11, r.y + 5, 22, 7);
-  ctx.fillRect(cx(r) - 11, r.y + r.h - 12, 22, 7);
+  // row of readout screens along the top wall
+  drawTopScreens(ctx, r, th.tint);
 
-  // real furniture placed across the whole floor
+  // a few recognisable machines dotted among the circuitry
   placeProps(ctx, r, th.tint);
 
-  // shared cyan wall frame
-  ctx.strokeStyle = EDGE;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
-  // yellow L-brackets at the four corners
-  cornerBracket(ctx, r.x - 1, r.y - 1, 1, 1);
-  cornerBracket(ctx, r.x + r.w, r.y - 1, -1, 1);
-  cornerBracket(ctx, r.x - 1, r.y + r.h, 1, -1);
-  cornerBracket(ctx, r.x + r.w, r.y + r.h, -1, -1);
+  // bright horizontal light bar across the upper third (the clip's cyan strip)
+  const barY = Math.round(r.y + r.h * 0.32);
+  ctx.fillStyle = hexA(EDGE, 0.16);
+  ctx.fillRect(r.x + 10, barY - 3, r.w - 20, 7);
+  ctx.fillStyle = hexA(EDGE, 0.95);
+  ctx.fillRect(r.x + 12, barY, r.w - 24, 2);
+
+  ctx.restore();
+
+  // thick dark hull frame on top (rounded metal border)
+  drawHull(ctx, r, th.tint);
 }
 
-// A faint floor grid + a couple of wall pipe runs — a subtle backdrop that the
-// real furniture (placeProps) sits on top of.
+// A strip of small monitors just inside the top wall, each with tiny readouts.
+function drawTopScreens(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
+  const y = r.y + 12;
+  const n = Math.max(3, Math.floor(r.w / 46));
+  const gap = (r.w - 24) / n;
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(r.x + 16 + gap * i);
+    const w = Math.round(gap - 8);
+    ctx.fillStyle = "#0a0d13";
+    ctx.fillRect(x, y, w, 12);
+    ctx.fillStyle = hexA(i % 3 === 0 ? C.toxic : tint, 0.35);
+    ctx.fillRect(x + 1, y + 1, w - 2, 10);
+    ctx.fillStyle = hexA(i % 3 === 0 ? C.toxic : tint, 0.9);
+    for (let ly = y + 2; ly < y + 11; ly += 2)
+      ctx.fillRect(x + 2, ly, 2 + (((x + ly) * 5) % (w - 4)), 1);
+  }
+}
+
+// Dense circuit-board texture: fine grid, packed micro-components, traces and
+// multi-coloured LEDs — makes each module read like a motherboard from above.
 function drawRoomDetail(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const top = r.y + 14;
-  const bot = r.y + r.h - 14;
-  const left = r.x + 8;
-  const right = r.x + r.w - 8;
-  // fine floor tile grid
-  ctx.strokeStyle = hexA(tint, 0.05);
+  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
+  const top = r.y + 26;
+  const bot = r.y + r.h - 12;
+  const left = r.x + 10;
+  const right = r.x + r.w - 10;
+  const leds = [tint, C.amber, C.toxic, C.scan, C.violet];
+
+  // fine base grid
+  ctx.strokeStyle = hexA(tint, 0.06);
   ctx.lineWidth = 1;
-  for (let gx = left; gx < right; gx += 16) {
+  for (let gx = left; gx < right; gx += 12) {
     ctx.beginPath();
     ctx.moveTo(gx + 0.5, top);
     ctx.lineTo(gx + 0.5, bot);
     ctx.stroke();
   }
-  for (let gy = top; gy < bot; gy += 16) {
+  for (let gy = top; gy < bot; gy += 12) {
     ctx.beginPath();
     ctx.moveTo(left, gy + 0.5);
     ctx.lineTo(right, gy + 0.5);
     ctx.stroke();
   }
-  // rivets at grid intersections for texture
-  ctx.fillStyle = hexA(tint, 0.09);
-  for (let gy = top; gy < bot; gy += 32) {
-    for (let gx = left; gx < right; gx += 32) ctx.fillRect(gx, gy, 1, 1);
+
+  // packed micro-components on a tight jittered grid
+  for (let gy = top; gy < bot - 3; gy += 9) {
+    for (let gx = left; gx < right - 3; gx += 9) {
+      const roll = rng();
+      const px = gx + ((rng() * 3) | 0);
+      const py = gy + ((rng() * 3) | 0);
+      if (roll < 0.42) {
+        // dark chip with a lit top edge
+        const w = 3 + ((rng() * 4) | 0);
+        const h = 2 + ((rng() * 3) | 0);
+        ctx.fillStyle = "#04060a";
+        ctx.fillRect(px, py, w, h);
+        ctx.fillStyle = hexA(tint, 0.45 + rng() * 0.3);
+        ctx.fillRect(px, py, w, 1);
+        if (rng() < 0.3) {
+          ctx.fillStyle = hexA(leds[(rng() * leds.length) | 0], 0.9);
+          ctx.fillRect(px + 1, py + 1, 1, 1);
+        }
+      } else if (roll < 0.56) {
+        // conductor trace
+        ctx.fillStyle = hexA(tint, 0.22);
+        if (rng() < 0.5) ctx.fillRect(px, py + 1, 7, 1);
+        else ctx.fillRect(px + 1, py, 1, 7);
+      } else if (roll < 0.74) {
+        // bright LED
+        ctx.fillStyle = hexA(leds[(rng() * leds.length) | 0], 0.85);
+        ctx.fillRect(px, py, 1, 1);
+        if (rng() < 0.25) ctx.fillRect(px + 2, py + 1, 1, 1);
+      }
+    }
   }
-  // pipe conduits along the side walls
-  ctx.fillStyle = hexA(tint, 0.16);
-  ctx.fillRect(r.x + 5, top, 2, bot - top);
-  ctx.fillRect(r.x + r.w - 7, top, 2, bot - top);
-  // a hazard stripe near the lower wall
-  ctx.fillStyle = hexA(C.amber, 0.12);
-  for (let sx0 = left; sx0 < right; sx0 += 10) ctx.fillRect(sx0, bot - 3, 5, 2);
+
+  // conduits down the side walls
+  ctx.fillStyle = hexA(tint, 0.18);
+  ctx.fillRect(r.x + 9, top, 2, bot - top);
+  ctx.fillRect(r.x + r.w - 11, top, 2, bot - top);
 }
 
 // Lays the room's furniture palette across the floor on a jittered grid so each
 // room looks packed with recognisable objects rather than abstract noise.
 function placeProps(ctx: CanvasRenderingContext2D, r: Room, tint: string) {
-  const rng = mulberry(((r.x * 73856093) ^ (r.y * 19349663)) >>> 0);
+  const rng = mulberry((((r.x + 11) * 73856093) ^ ((r.y + 7) * 19349663)) >>> 0);
   const palette = FURN[r.id] ?? ["console"];
-  const cw = 42;
-  const ch = 46;
-  const left = r.x + 14;
-  const right = r.x + r.w - 30;
-  const top = r.y + 18;
+  const cw = 52;
+  const ch = 52;
+  const left = r.x + 18;
+  const right = r.x + r.w - 34;
+  const top = r.y + 44;
   const bot = r.y + r.h - 40;
   let k = 0;
   // gather cells first, then draw sorted by y so lower objects overlap upper
   const cells: { x: number; y: number; p: Prop }[] = [];
   for (let gy = top; gy <= bot; gy += ch) {
     for (let gx = left; gx <= right; gx += cw) {
-      if (rng() < 0.18) continue; // leave some walking space
+      if (rng() < 0.45) continue; // sparser — the circuitry fills the gaps
       const p = palette[k++ % palette.length];
       cells.push({
         x: Math.round(gx + rng() * 8),
@@ -866,14 +956,16 @@ function drawDynamic(
     const heat = active[r.id] ?? 0;
     const pulse = 0.35 + 0.25 * Math.sin(now / 320 + r.x);
     const glow = Math.min(1, pulse + heat);
-    // cyan frame glow
+    // cyan frame glow (rounded to match the hull)
     ctx.strokeStyle = hexA(EDGE, 0.14 + 0.4 * glow);
     ctx.lineWidth = 2;
-    ctx.strokeRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    roundRectPath(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 12);
+    ctx.stroke();
     if (heat > 0.05) {
       // tinted outer halo + the signature big radial room glow
       ctx.strokeStyle = hexA(th.tint, 0.3 * heat);
-      ctx.strokeRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8);
+      roundRectPath(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, 14);
+      ctx.stroke();
       const rg = ctx.createRadialGradient(cx(r), cy(r), 2, cx(r), cy(r), r.w * 0.62);
       rg.addColorStop(0, hexA(th.tint, 0.55 * Math.min(1, heat)));
       rg.addColorStop(0.6, hexA(th.tint, 0.12 * Math.min(1, heat)));
@@ -882,11 +974,11 @@ function drawDynamic(
       ctx.fillRect(r.x - 8, r.y - 8, r.w + 16, r.h + 16);
     }
     // red horizontal scan beam (gently bobbing, brighter with activity)
-    const beamY = Math.round(r.y + r.h * 0.3 + Math.sin(now / 700 + r.x) * 6);
-    ctx.fillStyle = hexA(C.scan, 0.12);
-    ctx.fillRect(r.x + 4, beamY - 2, r.w - 8, 5);
-    ctx.fillStyle = hexA(C.scan, 0.45 + 0.35 * heat + 0.1 * Math.sin(now / 130));
-    ctx.fillRect(r.x + 4, beamY, r.w - 8, 2);
+    const beamY = Math.round(r.y + r.h * 0.55 + Math.sin(now / 700 + r.x) * 6);
+    ctx.fillStyle = hexA(C.scan, 0.1);
+    ctx.fillRect(r.x + 10, beamY - 2, r.w - 20, 5);
+    ctx.fillStyle = hexA(C.scan, 0.4 + 0.35 * heat + 0.1 * Math.sin(now / 130));
+    ctx.fillRect(r.x + 10, beamY, r.w - 20, 1);
     // blinking status LEDs along the top wall
     const nLed = 6;
     const step = (r.w - 24) / nLed;
